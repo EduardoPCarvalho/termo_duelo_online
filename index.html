@@ -311,6 +311,9 @@
 
 <!-- ── GAME ── -->
 <div id="screen-game" class="screen">
+  <div id="waiting-opp-banner" style="display:none; width:100%; background:var(--panel); border-bottom:1px solid var(--border); padding:10px 16px; text-align:center; font-size:.65rem; letter-spacing:2px; color:var(--yellow); text-transform:uppercase;">
+    Aguardando adversário… Código: <span id="banner-room-code" style="color:var(--blue); font-family:'Black Han Sans',sans-serif; font-size:.9rem; letter-spacing:4px;"></span>
+  </div>
   <div class="turn-banner" id="turn-banner">
     <div class="dot"></div>
     <span id="turn-text">—</span>
@@ -512,22 +515,24 @@ async function createRoom() {
     secret,
     hostSetSecret: hasCustomSecret,
     p1: { name, guesses: [], done: false, won: false },
-    p2: null,
+    p2: { name: '???', guesses: [], done: false, won: false }, // placeholder so host can start
     phase: 'waiting',
     rematch: {},
     created: Date.now(),
   };
 
   await storageSet('room:' + fullCode, roomData);
-  // Store fullCode as JSON so storageGet (which JSON.parses) works correctly
   try { await window.storage.set('roomidx:' + vCode, JSON.stringify(fullCode), true); } catch {}
   room = roomData;
 
   document.getElementById('display-room-code').textContent = vCode;
   document.getElementById('display-full-code').textContent = fullCode;
   document.getElementById('opp-name-waiting').textContent = 'adversário';
-  showScreen('waiting');
-  startPolling();
+
+  // Host goes directly to game, waiting for p2 to join while playing
+  initGame(roomData);
+  // Show the room code as a banner so host can share it
+  showMsg('Código da sala: ' + vCode + ' — compartilhe com seu adversário!', 'info');
 }
 
 // ── JOIN ROOM ─────────────────────────────────────────────────────────────
@@ -574,8 +579,8 @@ async function joinRoom() {
     return;
   }
 
-  if (roomData.p2) { showError('Sala já está cheia'); return; }
-  if (roomData.phase !== 'waiting') { showError('Jogo já em andamento'); return; }
+  if (roomData.p2 && roomData.p2.name !== '???') { showError('Sala já está cheia'); return; }
+  if (roomData.phase !== 'waiting' && roomData.phase !== 'playing') { showError('Jogo não disponível'); return; }
 
   me.role = 'p2';
   me.name = name;
@@ -586,7 +591,6 @@ async function joinRoom() {
   roomData.p2 = { name, guesses: [], done: false, won: false };
   roomData.phase = 'playing';
   await storageSet('room:' + fullCode, roomData);
-  // Write a second time to ensure storage propagation
   await storageSet('room:' + fullCode, roomData);
   room = roomData;
 
@@ -616,7 +620,7 @@ async function joinRoom6(fullCode, name) {
     await storageSet('room:' + fullCode, roomData);
   }
 
-  if (roomData.p2 && !roomData.reconstructed) { showError('Sala já está cheia'); return; }
+  if (roomData.p2 && roomData.p2.name !== '???' && !roomData.reconstructed) { showError('Sala já está cheia'); return; }
 
   me.role = 'p2';
   me.name = name;
@@ -661,22 +665,31 @@ async function poll() {
 
   const currentScreen = document.querySelector('.screen.active')?.id;
 
-  // Waiting → start game when p2 joins
+  // Waiting → start game when real p2 joins (name != placeholder)
   if (currentScreen === 'screen-waiting') {
-    if (roomData.p2 && (roomData.phase === 'playing' || roomData.phase === 'ended')) {
+    if (roomData.p2 && roomData.p2.name !== '???' && roomData.phase === 'playing') {
       stopPolling();
-      // If host set a custom secret word, they become observer
-      if (me.isObserver) {
-        initGame(roomData);
-      } else {
-        initGame(roomData);
-      }
+      initGame(roomData);
+    } else if (roomData.p2 && roomData.p2.name !== '???') {
+      // p2 joined but phase might not be 'playing' yet due to timing — force it
+      roomData.phase = 'playing';
+      stopPolling();
+      initGame(roomData);
     }
     return;
   }
 
-  // In game: sync opponent
+  // In game: sync opponent name if still placeholder
   if (currentScreen === 'screen-game') {
+    if (roomData.p2 && roomData.p2.name !== '???') {
+      // Update opponent name in header if it was placeholder
+      const oppNameEl = document.getElementById('hdr-p2-name');
+      if (oppNameEl && oppNameEl.textContent === '???') {
+        oppNameEl.textContent = roomData.p2.name.slice(0,4);
+        document.getElementById('opp-status-name').textContent = roomData.p2.name;
+        document.getElementById('waiting-opp-banner').style.display = 'none';
+      }
+    }
     syncOpponent(roomData);
 
     if (roomData.phase === 'ended') {
@@ -692,11 +705,22 @@ function initGame(roomData) {
   room = roomData;
   game = { secret: roomData.secret, guesses: [], current: '', done: false, won: false, keyHints: {} };
 
+  const p2IsReal = roomData.p2 && roomData.p2.name !== '???';
+
   // Build header
   document.getElementById('hdr-p1-name').textContent = roomData.p1.name.slice(0,4);
-  document.getElementById('hdr-p2-name').textContent = roomData.p2.name.slice(0,4);
+  document.getElementById('hdr-p2-name').textContent = p2IsReal ? roomData.p2.name.slice(0,4) : '???';
   document.getElementById('hdr-p1-score').textContent = scores.p1;
   document.getElementById('hdr-p2-score').textContent = scores.p2;
+
+  // Show waiting banner if host and p2 not yet joined
+  const waitingBanner = document.getElementById('waiting-opp-banner');
+  if (me.isHost && !p2IsReal) {
+    waitingBanner.style.display = 'block';
+    document.getElementById('banner-room-code').textContent = visibleCode(me.roomCode);
+  } else {
+    waitingBanner.style.display = 'none';
+  }
 
   // Observer (host who set secret)
   if (me.isObserver) {
@@ -771,7 +795,7 @@ function updateOppStatus(roomData) {
   const opp = roomData[oppRole];
   if (!opp) return;
 
-  document.getElementById('opp-status-name').textContent = opp.name;
+  document.getElementById('opp-status-name').textContent = opp.name === '???' ? 'Aguardando...' : opp.name;
   const pips = document.getElementById('opp-pips');
   pips.innerHTML = '';
   for (let i=0; i<MAX_ATTEMPTS; i++) {
