@@ -153,20 +153,27 @@
     color:var(--text); background:var(--panel);
     transition:border-color .15s, background .3s;
   }
+  @media (max-width:360px) { .cell { width:52px; height:52px; font-size:1.4rem; } }
   .cell.active-row { border-color:#444450; }
   .cell.filled { border-color:#555562; }
+  .cell.pop { animation:pop .12s ease; }
   .cell.correct { background:var(--green); border-color:var(--green); color:#fff; }
   .cell.present { background:var(--yellow); border-color:var(--yellow); color:#fff; }
   .cell.absent  { background:#333340; border-color:#333340; color:#888; }
   .cell.flip { animation:flip .5s ease forwards; }
-
+  @keyframes pop   { 0%{transform:scale(1)} 50%{transform:scale(1.12)} 100%{transform:scale(1)} }
   @keyframes flip  { 0%{transform:rotateX(0)} 50%{transform:rotateX(-90deg);background:var(--panel)} 100%{transform:rotateX(0)} }
   @keyframes shake { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-6px)} 40%,80%{transform:translateX(6px)} }
   @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
   .row.shake { animation:shake .4s ease; }
 
-  .message { font-size:.7rem; letter-spacing:2px; color:var(--muted); min-height:18px; text-align:center; text-transform:uppercase; }
+  .message {
+    font-size:.7rem; letter-spacing:2px; color:var(--muted);
+    min-height:18px; text-align:center; text-transform:uppercase;
+  }
   .message.error { color:var(--red); }
+  .message.success { color:var(--green); }
+  .message.info { color:var(--yellow); }
 
   /* ── KEYBOARD ── */
   .keyboard { display:flex; flex-direction:column; align-items:center; gap:6px; width:100%; max-width:400px; }
@@ -177,14 +184,20 @@
     padding:13px 8px; min-width:32px; cursor:pointer;
     text-transform:uppercase; letter-spacing:1px;
     transition:background .15s, transform .08s; border-radius:2px;
+    -webkit-tap-highlight-color:transparent; user-select:none;
   }
+  .key:active { transform:scale(.9); }
   .key.wide { min-width:50px; font-size:.6rem; }
   .key.correct { background:var(--green); color:#fff; }
   .key.present { background:var(--yellow); color:#fff; }
   .key.absent  { background:#1e1e24; color:var(--muted); }
 
   /* ── OPPONENT STATUS ── */
-  .opp-status { display:flex; align-items:center; gap:10px; padding:8px 16px; border:1px solid var(--border); font-size:.65rem; letter-spacing:2px; color:var(--muted); text-transform:uppercase; }
+  .opp-status {
+    display:flex; align-items:center; gap:10px;
+    padding:8px 16px; border:1px solid var(--border);
+    font-size:.65rem; letter-spacing:2px; color:var(--muted); text-transform:uppercase;
+  }
   .opp-guesses { display:flex; gap:4px; }
   .opp-pip { width:8px; height:8px; background:var(--border); border-radius:50%; }
   .opp-pip.used { background:var(--muted); }
@@ -192,14 +205,35 @@
   .opp-pip.lost { background:var(--red); }
 
   /* ── OVERLAY ── */
-  #overlay { position:fixed; inset:0; background:rgba(13,13,15,.88); backdrop-filter:blur(16px); z-index:200; display:none; align-items:center; justify-content:center; }
+  #overlay {
+    position:fixed; inset:0; background:rgba(13,13,15,.88);
+    backdrop-filter:blur(16px); z-index:200;
+    display:none; align-items:center; justify-content:center;
+  }
   #overlay.visible { display:flex; }
-  .result-card { background:var(--panel); border:1px solid var(--border); padding:40px 48px; text-align:center; max-width:380px; width:92%; display:flex; flex-direction:column; gap:20px; }
+  .result-card {
+    background:var(--panel); border:1px solid var(--border);
+    padding:40px 48px; text-align:center; max-width:380px; width:92%;
+    display:flex; flex-direction:column; gap:20px; animation:fadeIn .4s ease;
+  }
+  .result-card .trophy { font-size:2.8rem; }
   .result-card h2 { font-family:'Black Han Sans',sans-serif; font-size:1.8rem; letter-spacing:4px; }
-  .word-reveal { font-family:'Black Han Sans',sans-serif; font-size:1.4rem; letter-spacing:6px; color:var(--green); }
+  .result-card .word-reveal { font-family:'Black Han Sans',sans-serif; font-size:1.4rem; letter-spacing:6px; color:var(--green); }
+  .result-card .sub { font-size:.65rem; letter-spacing:2px; color:var(--muted); line-height:1.7; }
+  .result-actions { display:flex; flex-direction:column; gap:10px; }
 
-  #error-banner { position:fixed; top:60px; left:50%; transform:translateX(-50%); background:var(--red); color:#fff; padding:8px 20px; font-size:.65rem; letter-spacing:2px; text-transform:uppercase; z-index:300; display:none; }
-  #error-banner.show { display:block; }
+  /* ── SPINNER ── */
+  .spinner { width:24px; height:24px; border:2px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin .8s linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ── ERROR BANNER ── */
+  #error-banner {
+    position:fixed; top:60px; left:50%; transform:translateX(-50%);
+    background:var(--red); color:#fff; padding:8px 20px;
+    font-size:.65rem; letter-spacing:2px; text-transform:uppercase;
+    z-index:300; display:none; white-space:nowrap;
+  }
+  #error-banner.show { display:block; animation:fadeIn .3s ease; }
 </style>
 </head>
 <body>
@@ -207,257 +241,811 @@
 <header>
   <div class="logo">DUE<span>L</span>O</div>
   <div class="score-bar">
-    <div class="score-pill p1"><span class="label" id="hdr-p1-name">P1</span><span class="val" id="hdr-p1-score">0</span></div>
+    <div class="score-pill p1">
+      <span class="label" id="hdr-p1-name">P1</span>
+      <span class="val" id="hdr-p1-score">0</span>
+    </div>
     <span class="score-divider">×</span>
-    <div class="score-pill p2"><span class="label" id="hdr-p2-name">P2</span><span class="val" id="hdr-p2-score">0</span></div>
+    <div class="score-pill p2">
+      <span class="label" id="hdr-p2-name">P2</span>
+      <span class="val" id="hdr-p2-score">0</span>
+    </div>
   </div>
 </header>
 
 <div id="error-banner"></div>
 
+<!-- ── LOBBY ── -->
 <div id="screen-lobby" class="screen active">
-  <div class="lobby-title"><h1>DUELO</h1><p>Termo Online · 2 Jogadores</p></div>
+  <div class="lobby-title">
+    <h1>DUELO</h1>
+    <p>Termo Online · 2 Jogadores</p>
+  </div>
   <div class="lobby-tabs">
     <button class="tab-btn active" onclick="switchTab('create')">CRIAR SALA</button>
     <button class="tab-btn" onclick="switchTab('join')">ENTRAR</button>
   </div>
+
+  <!-- CREATE -->
   <div id="tab-create" class="tab-content active">
-    <div class="field"><label>Seu nome</label><input id="create-name" type="text" maxlength="12" placeholder="Ex: JOAO"></div>
-    <div class="field"><label>Palavra secreta (opcional)</label><input id="create-secret" type="text" maxlength="5" placeholder="deixe vazio para aleatória"></div>
-    <p class="note">Se preencher a palavra, <em>você não joga</em> — apenas o adversário.</p>
+    <div class="field">
+      <label>Seu nome</label>
+      <input id="create-name" type="text" maxlength="12" placeholder="Ex: JOAO">
+    </div>
+    <div class="field">
+      <label>Palavra secreta (opcional)</label>
+      <input id="create-secret" type="text" maxlength="5" placeholder="deixe vazio para aleatória">
+    </div>
+    <p class="note">Se preencher a palavra secreta, <em>você não poderá jogar</em> — apenas o adversário. Deixe vazio para jogar junto.</p>
     <button class="btn-primary" onclick="createRoom()">CRIAR SALA</button>
   </div>
+
+  <!-- JOIN -->
   <div id="tab-join" class="tab-content">
-    <div class="field"><label>Seu nome</label><input id="join-name" type="text" maxlength="12" placeholder="Ex: MARIA"></div>
-    <div class="field"><label>Código da sala</label><input id="join-code" type="text" maxlength="6" placeholder="Ex: AB3X" style="text-align:center;"></div>
+    <div class="field">
+      <label>Seu nome</label>
+      <input id="join-name" type="text" maxlength="12" placeholder="Ex: MARIA">
+    </div>
+    <div class="field">
+      <label>Código da sala</label>
+      <input id="join-code" type="text" maxlength="6" placeholder="Ex: AB3X" style="letter-spacing:6px; font-size:1.1rem; text-align:center;">
+    </div>
     <button class="btn-primary" onclick="joinRoom()">ENTRAR NA SALA</button>
   </div>
 </div>
 
+<!-- ── WAITING ── -->
 <div id="screen-waiting" class="screen">
-  <div class="room-code-box"><p>Código da sala</p><div class="room-code" id="display-room-code">????</div></div>
-  <p class="waiting-note">Mande o código ao adversário 👆</p>
-  <div class="waiting-flex"><div class="pulse-dot"></div><span class="waiting-note">Aguardando adversário<span class="dots-anim"></span></span></div>
-  <button class="btn-secondary" onclick="location.reload()">CANCELAR</button>
+  <div class="room-code-box">
+    <p>Código da sala</p>
+    <div class="room-code" id="display-room-code">????</div>
+  </div>
+  <p class="waiting-note">Mande esse código pro seu adversário<br>e peça pra ele entrar na sala 👆</p>
+  <p class="waiting-note" style="font-size:.6rem;">Se não funcionar, compartilhe o código completo:<br><em id="display-full-code" style="color:var(--blue);letter-spacing:3px;">——————</em></p>
+  <div class="waiting-flex">
+    <div class="pulse-dot"></div>
+    <span class="waiting-note">Aguardando <em id="opp-name-waiting">adversário</em><span class="dots-anim"></span></span>
+  </div>
+  <button class="btn-secondary" onclick="cancelRoom()">CANCELAR</button>
 </div>
 
+<!-- ── GAME ── -->
 <div id="screen-game" class="screen">
-  <div class="turn-banner" id="turn-banner"><div class="dot"></div><span id="turn-text">—</span></div>
-  <div class="opp-status"><span id="opp-status-name">?</span>: <div class="opp-guesses" id="opp-pips"></div></div>
+  <div class="turn-banner" id="turn-banner">
+    <div class="dot"></div>
+    <span id="turn-text">—</span>
+  </div>
+
+  <div class="opp-status" id="opp-status">
+    <span id="opp-status-name">?</span>:
+    <div class="opp-guesses" id="opp-pips"></div>
+  </div>
+
   <div class="grid" id="my-grid"></div>
   <div class="message" id="msg"></div>
+
   <div class="keyboard">
-    <div class="kb-row" id="kb-1"></div>
-    <div class="kb-row" id="kb-2"></div>
-    <div class="kb-row" id="kb-3"></div>
+    <div class="kb-row">
+      <button class="key" onclick="pressKey('Q')">Q</button>
+      <button class="key" onclick="pressKey('W')">W</button>
+      <button class="key" onclick="pressKey('E')">E</button>
+      <button class="key" onclick="pressKey('R')">R</button>
+      <button class="key" onclick="pressKey('T')">T</button>
+      <button class="key" onclick="pressKey('Y')">Y</button>
+      <button class="key" onclick="pressKey('U')">U</button>
+      <button class="key" onclick="pressKey('I')">I</button>
+      <button class="key" onclick="pressKey('O')">O</button>
+      <button class="key" onclick="pressKey('P')">P</button>
+    </div>
+    <div class="kb-row">
+      <button class="key" onclick="pressKey('A')">A</button>
+      <button class="key" onclick="pressKey('S')">S</button>
+      <button class="key" onclick="pressKey('D')">D</button>
+      <button class="key" onclick="pressKey('F')">F</button>
+      <button class="key" onclick="pressKey('G')">G</button>
+      <button class="key" onclick="pressKey('H')">H</button>
+      <button class="key" onclick="pressKey('J')">J</button>
+      <button class="key" onclick="pressKey('K')">K</button>
+      <button class="key" onclick="pressKey('L')">L</button>
+    </div>
+    <div class="kb-row">
+      <button class="key wide" onclick="submitGuess()">ENTER</button>
+      <button class="key" onclick="pressKey('Z')">Z</button>
+      <button class="key" onclick="pressKey('X')">X</button>
+      <button class="key" onclick="pressKey('C')">C</button>
+      <button class="key" onclick="pressKey('V')">V</button>
+      <button class="key" onclick="pressKey('B')">B</button>
+      <button class="key" onclick="pressKey('N')">N</button>
+      <button class="key" onclick="pressKey('M')">M</button>
+      <button class="key wide" onclick="deleteLetter()">⌫</button>
+    </div>
   </div>
 </div>
 
+<!-- ── RESULT OVERLAY ── -->
 <div id="overlay">
   <div class="result-card">
+    <div class="trophy" id="result-trophy">🏆</div>
     <h2 id="result-title">—</h2>
     <div class="word-reveal" id="result-word">—</div>
-    <button class="btn-primary" onclick="location.reload()">NOVO JOGO</button>
+    <p class="sub" id="result-sub">—</p>
+    <div class="result-actions">
+      <button class="btn-primary" onclick="requestRematch()">REVANCHE</button>
+      <button class="btn-secondary" onclick="goLobby()">SAIR</button>
+    </div>
   </div>
 </div>
 
 <script>
-const WORDS = ["ABRIR","ACASO","AJUDA","AMIGO","ANTES","AREIA","BANCO","BEIJO","CAMPO","CHAVE","CLARO","COISA","CORTE","FESTA","FORTE","IDEIA","JOGAR","LIVRE","MUNDO","NOITE","ORDEM","PEDRA","PONTO","SAUDE","TEMPO","TEXTO","VALOR","VERDE"];
-const POLL_INTERVAL = 1500;
-let me = { role: null, roomCode: '', name: '', isObserver: false };
-let game = { secret: '', guesses: [], current: '', done: false, won: false, keyHints: {} };
-let scores = { p1: 0, p2: 0 };
+// ── WORD LIST ──────────────────────────────────────────────────────────────
+const WORDS = [
+  "ABRIR","ABUSO","ACASO","ACIMA","AJUDA","ALGAS","ALMAS","ALUNO","AMADO","AMIGA",
+  "AMIGO","AMPLO","ANTES","AREIA","ARMAS","ARTES","ASTRO","ATRIZ","AULAS","AUTOR",
+  "AVISO","AZEDO","AZUIS","BAILE","BAIXO","BANCO","BANDA","BANHO","BARCO","BARRA",
+  "BATER","BEIJO","BELOS","BICHO","BINGO","BISPO","BLUES","BORDO","BOSSA","BRASA",
+  "BRAVO","BREVE","BRIGA","BURRO","BUSTO","CABER","CABRA","CACAU","CAIXA","CALDO",
+  "CALMA","CALOR","CAMPO","CANTO","CAPAZ","CARNE","CARRO","CARTA","CASCO","CAUSA",
+  "CHAVE","CHEIO","CHINA","CINCO","CITAR","CLARO","CLUBE","COBRA","COISA","COMER",
+  "COMUM","CONDE","CORTE","COSTA","COUVE","CRIAR","CRIME","CRISE","CRUEL","CULPA",
+  "CUSTA","DANCA","DANOS","DEDOS","DELTA","DENSO","DESDE","DEVER","DISCO","DOCES",
+  "DORES","DRAMA","DUQUE","EMANA","EMITE","ERGUE","ERRAR","ETAPA","EVITA","EXAME",
+  "EXTRA","FACIL","FALAR","FALHA","FALSO","FAROL","FAVOR","FEBRE","FELIZ","FESTA",
+  "FILHO","FINAL","FIRME","FORCA","FORMA","FORTE","FRACO","FRASE","FREIO","FROTA",
+  "GERAL","GESTO","GIRAR","GOLPE","GORDO","GOSTO","GRADE","GRAMA","GREVE","GRIPE",
+  "GUIAR","HAVIA","HEROI","HOMEM","HONRA","HORTA","HOTEL","HUMOR","ICONE","IDEIA",
+  "IMITA","IMUNE","JOGAR","JUNTA","JURAR","JUROS","JUNTO","LACAS","LAGOA","LEGAL",
+  "LENTO","LEVAR","LIVRE","LIDAR","LINHA","LISTA","LOCAL","LOUVA","LUCRO","LUGAR",
+  "LUTAR","MACHO","MAIOR","MAMAO","MANGA","MANTA","MARCA","MATAR","MEIOS","MENOR",
+  "MENTE","MESES","METAL","METRO","MILHO","MESMO","MINAR","MISSA","MISTO","MOEDA",
+  "MOLDE","MORAR","MORTO","MOTOR","MUDAR","MUNDO","MURAL","NADAR","NEGRO","NOBRE",
+  "NOITE","NORMA","NOSSO","NUVEM","ORDEM","OUTRO","PADRE","PAPEL","PARAR","PARTE",
+  "PASSE","PASTA","PEDRA","PEGAR","PENAS","PERDA","PESAR","PISTA","PLANO","PODER",
+  "PONTO","PORTA","POSTO","PRADO","PRAZO","PROVA","PULSO","QUEDA","RAIVA","RAZAO",
+  "RECUA","RENDA","REVER","RISCO","RIVAL","ROCHA","ROUBO","RUIDO","SAGAZ","SAIDA",
+  "SALTO","SALVA","SAMBA","SAUDE","SECAR","SEGUE","SENSO","SINAL","SOLAR","SOLTO",
+  "SONHO","SOPRO","SORTE","SUAVE","SURGE","SURTO","TANTO","TARDE","TENSO","TERRA",
+  "TESTE","TEMPO","TEXTO","TONEL","TOQUE","TORPE","TRACO","TRAMA","TRIGO","UNICO",
+  "UNIAO","VAGAO","VALOR","VASTO","VELAR","VERDE","VERSO","VICIO","VIGOR","VINHO",
+  "VISTA","VITAL","VOCAL","VOTAR","ZEROS"
+].filter(w => w.length === 5);
+
+const MAX_ATTEMPTS = 6;
+const WORD_LENGTH  = 5;
+const POLL_INTERVAL = 2000; // ms
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let me = {
+  role: null,        // 'p1' | 'p2'
+  name: '',
+  roomCode: '',
+  isHost: false,
+  isObserver: false, // host who set secret word can't play
+};
+
+let game = {
+  secret: '',
+  guesses: [],
+  current: '',
+  done: false,
+  won: false,
+  keyHints: {},
+};
+
+let room = null;     // full room object from storage
 let pollTimer = null;
+let scores = { p1: 0, p2: 0 };
+let rematchVotes = {};
 
-// Storage
-async function sGet(k) { try { const r = await window.storage.get(k, true); return r ? JSON.parse(r.value) : null; } catch { return null; } }
-async function sSet(k, v) { try { await window.storage.set(k, JSON.stringify(v), true); } catch(e) {} }
+// ── STORAGE HELPERS ────────────────────────────────────────────────────────
+async function storageGet(key) {
+  try {
+    const r = await window.storage.get(key, true);
+    return r ? JSON.parse(r.value) : null;
+  } catch { return null; }
+}
+async function storageSet(key, val) {
+  try {
+    await window.storage.set(key, JSON.stringify(val), true);
+  } catch(e) { console.error('storage set error', e); }
+}
+async function storageDel(key) {
+  try { await window.storage.delete(key, true); } catch {}
+}
 
+// ── ROOM CODE ──────────────────────────────────────────────────────────────
+// Full code = 6 chars: 4 visible (random) + 2 suffix (encodes word index in WORDS)
+// This lets P2 recover the secret word even if storage is isolated.
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars → 32²=1024 > WORDS.length
+
+function encodeIdx(idx) {
+  const hi = Math.floor(idx / CODE_CHARS.length);
+  const lo = idx % CODE_CHARS.length;
+  return CODE_CHARS[hi] + CODE_CHARS[lo];
+}
+
+function decodeIdx(suffix) {
+  const hi = CODE_CHARS.indexOf(suffix[0]);
+  const lo = CODE_CHARS.indexOf(suffix[1]);
+  if (hi < 0 || lo < 0) return -1;
+  return hi * CODE_CHARS.length + lo;
+}
+
+function genCode(wordIdx) {
+  let c = '';
+  for (let i=0;i<4;i++) c += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+  return c + encodeIdx(wordIdx); // full 6-char internal code
+}
+
+function visibleCode(fullCode) {
+  return fullCode.slice(0, 4); // only first 4 shown to user
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────────
 function switchTab(t) {
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', (i===0&&t==='create')||(i===1&&t==='join')));
   document.getElementById('tab-create').classList.toggle('active', t==='create');
   document.getElementById('tab-join').classList.toggle('active', t==='join');
 }
 
+// ── CREATE ROOM ───────────────────────────────────────────────────────────
 async function createRoom() {
-  const name = document.getElementById('create-name').value.trim().toUpperCase() || 'P1';
-  let secret = document.getElementById('create-secret').value.trim().toUpperCase();
-  const isObs = secret.length === 5;
-  if (!secret) secret = WORDS[Math.floor(Math.random()*WORDS.length)];
-  
-  const code = Math.random().toString(36).substring(2,6).toUpperCase();
-  me = { role: 'p1', roomCode: code, name, isObserver: isObs };
-  
-  const data = { code, secret, p1: { name, guesses: [], done: false }, p2: null, phase: 'waiting' };
-  await sSet('room:' + code, data);
-  document.getElementById('display-room-code').textContent = code;
+  const name = document.getElementById('create-name').value.trim().toUpperCase() || 'JOGADOR 1';
+  let secret = document.getElementById('create-secret').value.trim().toUpperCase().replace(/[^A-Z]/g,'');
+  const hasCustomSecret = secret.length === 5;
+  if (secret && secret.length !== 5) { showError('Palavra deve ter exatamente 5 letras'); return; }
+
+  let wordIdx = Math.floor(Math.random() * WORDS.length);
+  if (!secret) secret = WORDS[wordIdx];
+  else { const fi = WORDS.indexOf(secret); wordIdx = fi >= 0 ? fi : 0; }
+
+  const fullCode = genCode(wordIdx);
+  const vCode = visibleCode(fullCode);
+
+  me.role = 'p1';
+  me.name = name;
+  me.roomCode = fullCode;
+  me.isHost = true;
+  me.isObserver = hasCustomSecret;
+
+  const roomData = {
+    code: fullCode,
+    secret,
+    hostSetSecret: hasCustomSecret,
+    p1: { name, guesses: [], done: false, won: false },
+    p2: null,
+    phase: 'waiting',
+    rematch: {},
+    created: Date.now(),
+  };
+
+  await storageSet('room:' + fullCode, roomData);
+  // Store fullCode as JSON so storageGet (which JSON.parses) works correctly
+  try { await window.storage.set('roomidx:' + vCode, JSON.stringify(fullCode), true); } catch {}
+  room = roomData;
+
+  document.getElementById('display-room-code').textContent = vCode;
+  document.getElementById('display-full-code').textContent = fullCode;
+  document.getElementById('opp-name-waiting').textContent = 'adversário';
   showScreen('waiting');
   startPolling();
 }
 
+// ── JOIN ROOM ─────────────────────────────────────────────────────────────
 async function joinRoom() {
-  const name = document.getElementById('join-name').value.trim().toUpperCase() || 'P2';
-  const code = document.getElementById('join-code').value.trim().toUpperCase();
-  const data = await sGet('room:' + code);
-  if (!data || data.p2) { showError('Sala inválida ou cheia'); return; }
+  const name = document.getElementById('join-name').value.trim().toUpperCase() || 'JOGADOR 2';
+  const input = document.getElementById('join-code').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if (input.length === 6) { joinRoom6(input, name); return; }
+  if (input.length !== 4) { showError('Código deve ter 4 caracteres'); return; }
 
-  me = { role: 'p2', roomCode: code, name, isObserver: false };
-  data.p2 = { name, guesses: [], done: false };
-  data.phase = 'playing';
-  await sSet('room:' + code, data);
-  initGame(data);
+  let roomData = null;
+  let fullCode = null;
+
+  // Strategy 1: look up full code via index key (shared storage, same artifact link)
+  try {
+    const idxResult = await window.storage.get('roomidx:' + input, true);
+    if (idxResult && idxResult.value) {
+      fullCode = JSON.parse(idxResult.value);
+      roomData = await storageGet('room:' + fullCode);
+    }
+  } catch {}
+
+  // Strategy 2: list all keys with prefix 'room:' and match visible prefix
+  if (!roomData) {
+    try {
+      const listResult = await window.storage.list('room:', true);
+      if (listResult && listResult.keys) {
+        for (const k of listResult.keys) {
+          const code = k.replace('room:', '');
+          if (code.startsWith(input)) {
+            fullCode = code;
+            roomData = await storageGet(k);
+            if (roomData) break;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Strategy 3: storage isolated — ask for 6-char code
+  if (!roomData) {
+    showError('Sala não encontrada. Peça o código de 6 letras ao host.');
+    document.getElementById('join-code').setAttribute('maxlength','6');
+    document.getElementById('join-code').placeholder = 'Código de 6 chars';
+    return;
+  }
+
+  if (roomData.p2) { showError('Sala já está cheia'); return; }
+  if (roomData.phase !== 'waiting') { showError('Jogo já em andamento'); return; }
+
+  me.role = 'p2';
+  me.name = name;
+  me.roomCode = fullCode;
+  me.isHost = false;
+  me.isObserver = false;
+
+  roomData.p2 = { name, guesses: [], done: false, won: false };
+  roomData.phase = 'playing';
+  await storageSet('room:' + fullCode, roomData);
+  room = roomData;
+
+  initGame(roomData);
 }
 
-function startPolling() { stopPolling(); pollTimer = setInterval(poll, POLL_INTERVAL); }
-function stopPolling() { if (pollTimer) clearInterval(pollTimer); }
+// ── JOIN WITH 6-CHAR CODE (fallback autonomous recovery) ─────────────────
+async function joinRoom6(fullCode, name) {
+  let roomData = await storageGet('room:' + fullCode);
+
+  if (!roomData) {
+    const suffix = fullCode.slice(4);
+    const idx = decodeIdx(suffix);
+    if (idx < 0 || idx >= WORDS.length) { showError('Código inválido'); return; }
+    const secret = WORDS[idx];
+    roomData = {
+      code: fullCode,
+      secret,
+      hostSetSecret: false,
+      p1: { name: 'JOGADOR 1', guesses: [], done: false, won: false },
+      p2: null,
+      phase: 'waiting',
+      rematch: {},
+      created: Date.now(),
+      reconstructed: true,
+    };
+    await storageSet('room:' + fullCode, roomData);
+  }
+
+  if (roomData.p2 && !roomData.reconstructed) { showError('Sala já está cheia'); return; }
+
+  me.role = 'p2';
+  me.name = name;
+  me.roomCode = fullCode;
+  me.isHost = false;
+  me.isObserver = false;
+
+  roomData.p2 = { name, guesses: [], done: false, won: false };
+  roomData.phase = 'playing';
+  delete roomData.reconstructed;
+  await storageSet('room:' + fullCode, roomData);
+  room = roomData;
+  initGame(roomData);
+}
+
+// ── CANCEL ────────────────────────────────────────────────────────────────
+async function cancelRoom() {
+  stopPolling();
+  if (me.roomCode) {
+    await storageDel('room:' + me.roomCode);
+    await storageDel('roomidx:' + visibleCode(me.roomCode));
+  }
+  showScreen('lobby');
+}
+
+// ── POLLING ───────────────────────────────────────────────────────────────
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(poll, POLL_INTERVAL);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
 
 async function poll() {
-  const data = await sGet('room:' + me.roomCode);
-  if (!data) return;
+  if (!me.roomCode) return;
+  const roomData = await storageGet('room:' + me.roomCode);
+  if (!roomData) return;
+  room = roomData;
 
-  // Se eu sou o P1 e estava esperando, e o P2 entrou
-  if (me.role === 'p1' && document.getElementById('screen-waiting').classList.contains('active')) {
-    if (data.p2) { stopPolling(); initGame(data); return; }
+  const currentScreen = document.querySelector('.screen.active')?.id;
+
+  // Waiting → start game when p2 joins
+  if (currentScreen === 'screen-waiting') {
+    if (roomData.phase === 'playing' && roomData.p2) {
+      stopPolling();
+      initGame(roomData);
+    }
+    return;
   }
 
-  if (document.getElementById('screen-game').classList.contains('active')) {
-    updateOppStatus(data);
-    if (data.phase === 'ended') { stopPolling(); showResult(data); }
+  // In game: sync opponent
+  if (currentScreen === 'screen-game') {
+    syncOpponent(roomData);
+
+    if (roomData.phase === 'ended') {
+      stopPolling();
+      showResult(roomData);
+    }
   }
 }
 
-function initGame(data) {
-  game = { secret: data.secret, guesses: [], current: '', done: false, won: false, keyHints: {} };
-  document.getElementById('hdr-p1-name').textContent = data.p1.name;
-  document.getElementById('hdr-p2-name').textContent = data.p2 ? data.p2.name : '...';
-  buildGrid();
-  buildKeyboard();
-  updateTurnBanner();
+// ── INIT GAME ─────────────────────────────────────────────────────────────
+function initGame(roomData) {
+  stopPolling();
+  room = roomData;
+  game = { secret: roomData.secret, guesses: [], current: '', done: false, won: false, keyHints: {} };
+
+  // Build header
+  document.getElementById('hdr-p1-name').textContent = roomData.p1.name.slice(0,4);
+  document.getElementById('hdr-p2-name').textContent = roomData.p2.name.slice(0,4);
+  document.getElementById('hdr-p1-score').textContent = scores.p1;
+  document.getElementById('hdr-p2-score').textContent = scores.p2;
+
+  // Observer (host who set secret)
+  if (me.isObserver) {
+    showScreen('game');
+    showMsg('Você escolheu a palavra. Aguarde o resultado!', 'info');
+    buildGrid(true);
+    updateTurnBanner();
+    updateOppStatus(roomData);
+    startPolling();
+    return;
+  }
+
   showScreen('game');
+  buildGrid(false);
+  updateTurnBanner();
+  updateOppStatus(roomData);
   startPolling();
 }
 
-function buildGrid() {
-  const g = document.getElementById('my-grid'); g.innerHTML = '';
-  for (let r=0; r<6; r++) {
-    const row = document.createElement('div'); row.className = 'row'; row.id = 'row-'+r;
-    for (let c=0; c<5; c++) {
-      const cell = document.createElement('div'); cell.className = 'cell'; cell.id = `cell-${r}-${c}`;
+// ── BUILD GRID ────────────────────────────────────────────────────────────
+function buildGrid(disabled) {
+  const g = document.getElementById('my-grid');
+  g.innerHTML = '';
+  for (let r=0; r<MAX_ATTEMPTS; r++) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.id = 'row-' + r;
+    for (let c=0; c<WORD_LENGTH; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.id = `cell-${r}-${c}`;
       row.appendChild(cell);
     }
     g.appendChild(row);
   }
-  highlightRow();
+  if (!disabled) highlightActiveRow();
 }
 
-function buildKeyboard() {
-  const rows = [["Q","W","E","R","T","Y","U","I","O","P"],["A","S","D","F","G","H","J","K","L"],["ENTER","Z","X","C","V","B","N","M","⌫"]];
-  rows.forEach((r, i) => {
-    const container = document.getElementById('kb-' + (i+1)); container.innerHTML = '';
-    r.forEach(key => {
-      const btn = document.createElement('button'); btn.className = 'key' + (key.length > 1 ? ' wide' : '');
-      btn.textContent = key;
-      btn.onclick = () => handleInput(key);
-      container.appendChild(btn);
-    });
+function highlightActiveRow() {
+  for (let r=0; r<MAX_ATTEMPTS; r++) {
+    const row = document.getElementById('row-' + r);
+    if (!row) continue;
+    row.querySelectorAll('.cell').forEach(c => c.classList.remove('active-row'));
+  }
+  if (!game.done) {
+    const activeRow = document.getElementById('row-' + game.guesses.length);
+    if (activeRow) activeRow.querySelectorAll('.cell').forEach(c => c.classList.add('active-row'));
+  }
+}
+
+// ── TURN BANNER ───────────────────────────────────────────────────────────
+function updateTurnBanner() {
+  const banner = document.getElementById('turn-banner');
+  const text   = document.getElementById('turn-text');
+  if (me.isObserver) {
+    banner.className = 'turn-banner opp-turn';
+    text.textContent = 'VOCÊ É O ÁRBITRO';
+    return;
+  }
+  if (game.done) {
+    banner.className = 'turn-banner opp-turn';
+    text.textContent = game.won ? '✓ VOCÊ ACERTOU' : '✗ VOCÊ PERDEU';
+  } else {
+    banner.className = 'turn-banner my-turn';
+    text.textContent = 'SUA VEZ — ' + me.name;
+  }
+}
+
+// ── OPP STATUS ────────────────────────────────────────────────────────────
+function updateOppStatus(roomData) {
+  const oppRole = me.role === 'p1' ? 'p2' : 'p1';
+  const opp = roomData[oppRole];
+  if (!opp) return;
+
+  document.getElementById('opp-status-name').textContent = opp.name;
+  const pips = document.getElementById('opp-pips');
+  pips.innerHTML = '';
+  for (let i=0; i<MAX_ATTEMPTS; i++) {
+    const d = document.createElement('div');
+    d.className = 'opp-pip';
+    if (opp.done && opp.won && i === opp.guesses.length - 1) d.classList.add('won');
+    else if (opp.done && !opp.won && i < opp.guesses.length) d.classList.add('lost');
+    else if (i < opp.guesses.length) d.classList.add('used');
+    pips.appendChild(d);
+  }
+}
+
+function syncOpponent(roomData) {
+  updateOppStatus(roomData);
+
+  // check if game ended remotely
+  const myData = roomData[me.role];
+  const oppRole = me.role === 'p1' ? 'p2' : 'p1';
+  const oppData = roomData[oppRole];
+
+  if (me.isObserver && roomData.phase === 'ended') return; // handled in poll
+
+  // If both done but phase not yet ended (race condition safety)
+  if (myData && myData.done && oppData && oppData.done && roomData.phase !== 'ended') {
+    roomData.phase = 'ended';
+    storageSet('room:' + me.roomCode, roomData);
+    stopPolling();
+    showResult(roomData);
+  }
+}
+
+// ── KEY INPUT ─────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (me.isObserver || game.done) return;
+  const key = e.key.toUpperCase();
+  if (key === 'ENTER') { submitGuess(); return; }
+  if (key === 'BACKSPACE') { deleteLetter(); return; }
+  if (/^[A-Z]$/.test(key)) pressKey(key);
+});
+
+function pressKey(key) {
+  if (me.isObserver || game.done) return;
+  if (game.current.length >= WORD_LENGTH) return;
+  game.current += key;
+  renderCurrentInput();
+  const cell = document.getElementById(`cell-${game.guesses.length}-${game.current.length-1}`);
+  if (cell) { cell.classList.remove('pop'); void cell.offsetWidth; cell.classList.add('pop'); }
+  clearMsg();
+}
+
+function deleteLetter() {
+  if (me.isObserver || game.done) return;
+  game.current = game.current.slice(0,-1);
+  renderCurrentInput();
+  clearMsg();
+}
+
+function renderCurrentInput() {
+  const row = game.guesses.length;
+  for (let c=0; c<WORD_LENGTH; c++) {
+    const cell = document.getElementById(`cell-${row}-${c}`);
+    if (!cell) continue;
+    const ch = game.current[c] || '';
+    cell.textContent = ch;
+    cell.classList.toggle('filled', ch !== '');
+    cell.classList.remove('correct','present','absent');
+  }
+}
+
+// ── SUBMIT ────────────────────────────────────────────────────────────────
+async function submitGuess() {
+  if (me.isObserver || game.done) return;
+  if (game.current.length < WORD_LENGTH) {
+    shakeRow(game.guesses.length);
+    showMsg('Palavra incompleta!', 'error');
+    return;
+  }
+
+  const guess = game.current;
+  game.guesses.push(guess);
+  game.current = '';
+
+  const result = evaluateGuess(guess, game.secret);
+  revealRow(game.guesses.length - 1, guess, result, async () => {
+    if (guess === game.secret) { game.done = true; game.won = true; }
+    else if (game.guesses.length >= MAX_ATTEMPTS) { game.done = true; game.won = false; }
+    updateKeyboard(guess, result);
+    updateTurnBanner();
+
+    // Persist my progress
+    const roomData = await storageGet('room:' + me.roomCode);
+    if (!roomData) return;
+    roomData[me.role] = { name: me.name, guesses: game.guesses, done: game.done, won: game.won };
+
+    const oppRole = me.role === 'p1' ? 'p2' : 'p1';
+    const oppData = roomData[oppRole];
+
+    if (game.done && oppData && oppData.done) {
+      roomData.phase = 'ended';
+      await storageSet('room:' + me.roomCode, roomData);
+      stopPolling();
+      showResult(roomData);
+    } else {
+      await storageSet('room:' + me.roomCode, roomData);
+    }
   });
 }
 
-function handleInput(key) {
-  if (me.isObserver || game.done) return;
-  if (key === '⌫') game.current = game.current.slice(0, -1);
-  else if (key === 'ENTER') submit();
-  else if (game.current.length < 5 && /^[A-Z]$/.test(key)) game.current += key;
-  renderInput();
-}
-
-function renderInput() {
-  const row = game.guesses.length;
-  for (let c=0; c<5; c++) {
-    const cell = document.getElementById(`cell-${row}-${c}`);
-    cell.textContent = game.current[c] || '';
-    cell.classList.toggle('filled', !!game.current[c]);
+// ── EVALUATE ──────────────────────────────────────────────────────────────
+function evaluateGuess(guess, secret) {
+  const result = Array(WORD_LENGTH).fill('absent');
+  const sArr = secret.split(''), gArr = guess.split('');
+  const used = Array(WORD_LENGTH).fill(false);
+  for (let i=0;i<WORD_LENGTH;i++) if (gArr[i]===sArr[i]) { result[i]='correct'; used[i]=true; }
+  for (let i=0;i<WORD_LENGTH;i++) {
+    if (result[i]==='correct') continue;
+    for (let j=0;j<WORD_LENGTH;j++) if (!used[j]&&gArr[i]===sArr[j]) { result[i]='present'; used[j]=true; break; }
   }
+  return result;
 }
 
-async function submit() {
-  if (game.current.length < 5) return;
-  const guess = game.current; game.guesses.push(guess); game.current = '';
-  const result = evalGuess(guess, game.secret);
-  
-  const rowIdx = game.guesses.length - 1;
-  for (let c=0; c<5; c++) {
+// ── REVEAL ANIMATION ──────────────────────────────────────────────────────
+function revealRow(rowIdx, guess, result, cb) {
+  const delay = 300;
+  for (let c=0;c<WORD_LENGTH;c++) {
     const cell = document.getElementById(`cell-${rowIdx}-${c}`);
-    cell.className = `cell flip ${result[c]}`;
+    if (!cell) continue;
+    setTimeout(() => {
+      cell.classList.add('flip');
+      setTimeout(() => { cell.textContent=guess[c]; cell.className=`cell ${result[c]}`; }, 250);
+    }, c*delay);
+  }
+  setTimeout(() => { highlightActiveRow(); cb(); }, WORD_LENGTH*delay+300);
+}
+
+// ── KEYBOARD ──────────────────────────────────────────────────────────────
+const RANK = { correct:3, present:2, absent:1 };
+function updateKeyboard(guess, result) {
+  for (let i=0;i<WORD_LENGTH;i++) {
+    const ch = guess[i];
+    if (!game.keyHints[ch] || RANK[result[i]] > RANK[game.keyHints[ch]]) game.keyHints[ch] = result[i];
+  }
+  document.querySelectorAll('.key').forEach(k => {
+    const ch = k.textContent.trim();
+    if (ch.length===1) {
+      k.classList.remove('correct','present','absent');
+      if (game.keyHints[ch]) k.classList.add(game.keyHints[ch]);
+    }
+  });
+}
+
+// ── RESULT ────────────────────────────────────────────────────────────────
+function showResult(roomData) {
+  const p1 = roomData.p1, p2 = roomData.p2;
+  let trophy, title, sub;
+
+  if (p1.won && p2.won) {
+    const a1=p1.guesses.length, a2=p2.guesses.length;
+    if (a1<a2)      { scores.p1++; trophy='🏆'; title=`${p1.name} VENCEU!`; sub=`${a1} tentativas vs ${a2} de ${p2.name}`; }
+    else if (a2<a1) { scores.p2++; trophy='🏆'; title=`${p2.name} VENCEU!`; sub=`${a2} tentativas vs ${a1} de ${p1.name}`; }
+    else            { trophy='🤝'; title='EMPATE!'; sub=`Ambos acertaram em ${a1} tentativas`; }
+  } else if (p1.won) {
+    scores.p1++; trophy='🏆'; title=`${p1.name} VENCEU!`; sub=`${p2.name} não conseguiu acertar`;
+  } else if (p2.won) {
+    scores.p2++; trophy='🏆'; title=`${p2.name} VENCEU!`; sub=`${p1.name} não conseguiu acertar`;
+  } else {
+    trophy='💀'; title='NINGUÉM ACERTOU!'; sub='Tentem de novo!';
   }
 
-  if (guess === game.secret) { game.done = true; game.won = true; }
-  else if (game.guesses.length >= 6) { game.done = true; game.won = false; }
-
-  const data = await sGet('room:' + me.roomCode);
-  data[me.role].guesses = game.guesses;
-  data[me.role].done = game.done;
-  data[me.role].won = game.won;
-  
-  if (data.p1.done && data.p2.done) data.phase = 'ended';
-  await sSet('room:' + me.roomCode, data);
-  
-  updateTurnBanner();
-  highlightRow();
-}
-
-function evalGuess(g, s) {
-  const res = Array(5).fill('absent');
-  const sArr = s.split(''), used = Array(5).fill(false);
-  for (let i=0; i<5; i++) if (g[i]===sArr[i]) { res[i]='correct'; used[i]=true; }
-  for (let i=0; i<5; i++) {
-    if (res[i]==='correct') continue;
-    for (let j=0; j<5; j++) if (!used[j] && g[i]===sArr[j]) { res[i]='present'; used[j]=true; break; }
-  }
-  return res;
-}
-
-function highlightRow() {
-  document.querySelectorAll('.cell').forEach(c => c.classList.remove('active-row'));
-  if (!game.done && !me.isObserver) {
-    const r = document.getElementById('row-' + game.guesses.length);
-    if (r) r.querySelectorAll('.cell').forEach(c => c.classList.add('active-row'));
-  }
-}
-
-function updateTurnBanner() {
-  const txt = document.getElementById('turn-text');
-  if (me.isObserver) txt.textContent = "MODO ESPECTADOR";
-  else if (game.done) txt.textContent = game.won ? "VOCÊ ACERTOU!" : "VOCÊ PERDEU!";
-  else txt.textContent = "SUA VEZ";
-}
-
-function updateOppStatus(data) {
-  const opp = me.role === 'p1' ? data.p2 : data.p1;
-  if (!opp) return;
-  document.getElementById('opp-status-name').textContent = opp.name;
-  const pips = document.getElementById('opp-pips'); pips.innerHTML = '';
-  for (let i=0; i<6; i++) {
-    const p = document.createElement('div'); p.className = 'opp-pip';
-    if (i < opp.guesses.length) p.classList.add('used');
-    if (opp.done && opp.won && i === opp.guesses.length-1) p.classList.add('won');
-    pips.appendChild(p);
-  }
-}
-
-function showResult(data) {
-  document.getElementById('result-word').textContent = data.secret;
-  document.getElementById('result-title').textContent = (data.p1.won || data.p2.won) ? "FIM DE DUELO" : "NINGUÉM ACERTOU";
+  document.getElementById('result-trophy').textContent = trophy;
+  document.getElementById('result-title').textContent  = title;
+  document.getElementById('result-word').textContent   = roomData.secret;
+  document.getElementById('result-sub').textContent    = sub;
+  document.getElementById('hdr-p1-score').textContent  = scores.p1;
+  document.getElementById('hdr-p2-score').textContent  = scores.p2;
   document.getElementById('overlay').classList.add('visible');
 }
 
-function showScreen(n) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen-' + n).classList.add('active');
+// ── REMATCH ───────────────────────────────────────────────────────────────
+async function requestRematch() {
+  document.getElementById('overlay').classList.remove('visible');
+  const roomData = await storageGet('room:' + me.roomCode);
+  if (!roomData) { goLobby(); return; }
+
+  if (!roomData.rematch) roomData.rematch = {};
+  roomData.rematch[me.role] = true;
+
+  const oppRole = me.role === 'p1' ? 'p2' : 'p1';
+  if (roomData.rematch[oppRole]) {
+    // Both voted — start new round
+    const newIdx = Math.floor(Math.random()*WORDS.length);
+    const newSecret = WORDS[newIdx];
+    const newFullCode = genCode(newIdx);
+    const newRoom = {
+      ...roomData,
+      code: newFullCode,
+      secret: newSecret,
+      hostSetSecret: false,
+      p1: { name: roomData.p1.name, guesses: [], done: false, won: false },
+      p2: { name: roomData.p2.name, guesses: [], done: false, won: false },
+      phase: 'playing',
+      rematch: {},
+    };
+    await storageSet('room:' + newFullCode, newRoom);
+    await storageDel('room:' + me.roomCode);
+    me.roomCode = newFullCode;
+    room = newRoom;
+    initGame(newRoom);
+  } else {
+    roomData.phase = 'rematch-wait';
+    await storageSet('room:' + me.roomCode, roomData);
+    showMsg('Aguardando adversário aceitar revanche…', 'info');
+    // Poll for opponent's vote
+    const waitRematch = setInterval(async () => {
+      const rd = await storageGet('room:' + me.roomCode);
+      if (!rd) { clearInterval(waitRematch); return; }
+      if (rd.rematch && rd.rematch[oppRole]) {
+        clearInterval(waitRematch);
+        const newIdx2 = Math.floor(Math.random()*WORDS.length);
+        const newSecret2 = WORDS[newIdx2];
+        const newFullCode2 = genCode(newIdx2);
+        const newRoom = {
+          ...rd,
+          code: newFullCode2,
+          secret: newSecret2,
+          hostSetSecret: false,
+          p1: { name: rd.p1.name, guesses: [], done: false, won: false },
+          p2: { name: rd.p2.name, guesses: [], done: false, won: false },
+          phase: 'playing',
+          rematch: {},
+        };
+        await storageSet('room:' + newFullCode2, newRoom);
+        await storageDel('room:' + me.roomCode);
+        me.roomCode = newFullCode2;
+        room = newRoom;
+        initGame(newRoom);
+      } else if (rd.phase === 'playing') {
+        // opponent initiated
+        clearInterval(waitRematch);
+        room = rd;
+        initGame(rd);
+      }
+    }, POLL_INTERVAL);
+  }
 }
 
-function showError(m) {
-  const b = document.getElementById('error-banner'); b.textContent = m; b.classList.add('show');
+function goLobby() {
+  stopPolling();
+  document.getElementById('overlay').classList.remove('visible');
+  const jc = document.getElementById('join-code');
+  jc.value = ''; jc.setAttribute('maxlength','6'); jc.placeholder = 'Ex: AB3X';
+  document.getElementById('create-name').value = '';
+  document.getElementById('create-secret').value = '';
+  me = { role: null, name: '', roomCode: '', isHost: false, isObserver: false };
+  game = { secret:'', guesses:[], current:'', done:false, won:false, keyHints:{} };
+  showScreen('lobby');
+}
+
+// ── SCREEN SWITCH ─────────────────────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function showMsg(text, type) {
+  const el = document.getElementById('msg');
+  el.textContent = text; el.className = 'message ' + (type||'');
+  if (type !== 'info') setTimeout(() => { if (el.textContent===text) { el.textContent=''; el.className='message'; } }, 2500);
+}
+function clearMsg() {
+  const el = document.getElementById('msg');
+  el.textContent = ''; el.className = 'message';
+}
+function shakeRow(rowIdx) {
+  const row = document.getElementById('row-' + rowIdx);
+  if (!row) return;
+  row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake');
+  setTimeout(() => row.classList.remove('shake'), 500);
+}
+function showError(msg) {
+  const b = document.getElementById('error-banner');
+  b.textContent = msg; b.classList.add('show');
   setTimeout(() => b.classList.remove('show'), 3000);
 }
 </script>
