@@ -519,7 +519,8 @@ async function createRoom() {
   };
 
   await storageSet('room:' + fullCode, roomData);
-  await storageSet('roomidx:' + vCode, fullCode);
+  // Store fullCode as JSON so storageGet (which JSON.parses) works correctly
+  try { await window.storage.set('roomidx:' + vCode, JSON.stringify(fullCode), true); } catch {}
   room = roomData;
 
   document.getElementById('display-room-code').textContent = vCode;
@@ -543,7 +544,7 @@ async function joinRoom() {
   try {
     const idxResult = await window.storage.get('roomidx:' + input, true);
     if (idxResult && idxResult.value) {
-      fullCode = idxResult.value;
+      fullCode = JSON.parse(idxResult.value);
       roomData = await storageGet('room:' + fullCode);
     }
   } catch {}
