@@ -411,7 +411,7 @@ const WORDS = [
 
 const MAX_ATTEMPTS = 6;
 const WORD_LENGTH  = 5;
-const POLL_INTERVAL = 2000; // ms
+const POLL_INTERVAL = 1000; // ms
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let me = {
@@ -586,6 +586,8 @@ async function joinRoom() {
   roomData.p2 = { name, guesses: [], done: false, won: false };
   roomData.phase = 'playing';
   await storageSet('room:' + fullCode, roomData);
+  // Write a second time to ensure storage propagation
+  await storageSet('room:' + fullCode, roomData);
   room = roomData;
 
   initGame(roomData);
@@ -626,6 +628,8 @@ async function joinRoom6(fullCode, name) {
   roomData.phase = 'playing';
   delete roomData.reconstructed;
   await storageSet('room:' + fullCode, roomData);
+  // Write a second time to ensure storage propagation
+  await storageSet('room:' + fullCode, roomData);
   room = roomData;
   initGame(roomData);
 }
@@ -659,9 +663,14 @@ async function poll() {
 
   // Waiting → start game when p2 joins
   if (currentScreen === 'screen-waiting') {
-    if (roomData.phase === 'playing' && roomData.p2) {
+    if (roomData.p2 && (roomData.phase === 'playing' || roomData.phase === 'ended')) {
       stopPolling();
-      initGame(roomData);
+      // If host set a custom secret word, they become observer
+      if (me.isObserver) {
+        initGame(roomData);
+      } else {
+        initGame(roomData);
+      }
     }
     return;
   }
