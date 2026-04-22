@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>TERMO DUELO ONLINE</title>
+<title>DUELO — Termo Online</title>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -288,7 +288,7 @@
     </div>
     <div class="field">
       <label>Código da sala</label>
-      <input id="join-code" type="text" maxlength="4" placeholder="Ex: AB3X" style="letter-spacing:6px; font-size:1.1rem; text-align:center;">
+      <input id="join-code" type="text" maxlength="6" placeholder="Ex: AB3X" style="letter-spacing:6px; font-size:1.1rem; text-align:center;">
     </div>
     <button class="btn-primary" onclick="joinRoom()">ENTRAR NA SALA</button>
   </div>
@@ -301,6 +301,7 @@
     <div class="room-code" id="display-room-code">????</div>
   </div>
   <p class="waiting-note">Mande esse código pro seu adversário<br>e peça pra ele entrar na sala 👆</p>
+  <p class="waiting-note" style="font-size:.6rem;">Se não funcionar, compartilhe o código completo:<br><em id="display-full-code" style="color:var(--blue);letter-spacing:3px;">——————</em></p>
   <div class="waiting-flex">
     <div class="pulse-dot"></div>
     <span class="waiting-note">Aguardando <em id="opp-name-waiting">adversário</em><span class="dots-anim"></span></span>
@@ -452,11 +453,31 @@ async function storageDel(key) {
 }
 
 // ── ROOM CODE ──────────────────────────────────────────────────────────────
-function genCode() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// Full code = 6 chars: 4 visible (random) + 2 suffix (encodes word index in WORDS)
+// This lets P2 recover the secret word even if storage is isolated.
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 32 chars → 32²=1024 > WORDS.length
+
+function encodeIdx(idx) {
+  const hi = Math.floor(idx / CODE_CHARS.length);
+  const lo = idx % CODE_CHARS.length;
+  return CODE_CHARS[hi] + CODE_CHARS[lo];
+}
+
+function decodeIdx(suffix) {
+  const hi = CODE_CHARS.indexOf(suffix[0]);
+  const lo = CODE_CHARS.indexOf(suffix[1]);
+  if (hi < 0 || lo < 0) return -1;
+  return hi * CODE_CHARS.length + lo;
+}
+
+function genCode(wordIdx) {
   let c = '';
-  for (let i=0;i<4;i++) c += chars[Math.floor(Math.random()*chars.length)];
-  return c;
+  for (let i=0;i<4;i++) c += CODE_CHARS[Math.floor(Math.random()*CODE_CHARS.length)];
+  return c + encodeIdx(wordIdx); // full 6-char internal code
+}
+
+function visibleCode(fullCode) {
+  return fullCode.slice(0, 4); // only first 4 shown to user
 }
 
 // ── TABS ──────────────────────────────────────────────────────────────────
@@ -472,30 +493,37 @@ async function createRoom() {
   let secret = document.getElementById('create-secret').value.trim().toUpperCase().replace(/[^A-Z]/g,'');
   const hasCustomSecret = secret.length === 5;
   if (secret && secret.length !== 5) { showError('Palavra deve ter exatamente 5 letras'); return; }
-  if (!secret) secret = WORDS[Math.floor(Math.random()*WORDS.length)];
 
-  const code = genCode();
+  let wordIdx = Math.floor(Math.random() * WORDS.length);
+  if (!secret) secret = WORDS[wordIdx];
+  else { const fi = WORDS.indexOf(secret); wordIdx = fi >= 0 ? fi : 0; }
+
+  const fullCode = genCode(wordIdx);
+  const vCode = visibleCode(fullCode);
+
   me.role = 'p1';
   me.name = name;
-  me.roomCode = code;
+  me.roomCode = fullCode;
   me.isHost = true;
   me.isObserver = hasCustomSecret;
 
   const roomData = {
-    code,
+    code: fullCode,
     secret,
     hostSetSecret: hasCustomSecret,
     p1: { name, guesses: [], done: false, won: false },
     p2: null,
-    phase: 'waiting',  // waiting | playing | ended
+    phase: 'waiting',
     rematch: {},
     created: Date.now(),
   };
 
-  await storageSet('room:' + code, roomData);
+  await storageSet('room:' + fullCode, roomData);
+  await storageSet('roomidx:' + vCode, fullCode);
   room = roomData;
 
-  document.getElementById('display-room-code').textContent = code;
+  document.getElementById('display-room-code').textContent = vCode;
+  document.getElementById('display-full-code').textContent = fullCode;
   document.getElementById('opp-name-waiting').textContent = 'adversário';
   showScreen('waiting');
   startPolling();
@@ -504,32 +532,110 @@ async function createRoom() {
 // ── JOIN ROOM ─────────────────────────────────────────────────────────────
 async function joinRoom() {
   const name = document.getElementById('join-name').value.trim().toUpperCase() || 'JOGADOR 2';
-  const code = document.getElementById('join-code').value.trim().toUpperCase();
-  if (code.length !== 4) { showError('Código deve ter 4 caracteres'); return; }
+  const input = document.getElementById('join-code').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+  if (input.length === 6) { joinRoom6(input, name); return; }
+  if (input.length !== 4) { showError('Código deve ter 4 caracteres'); return; }
 
-  const roomData = await storageGet('room:' + code);
-  if (!roomData) { showError('Sala não encontrada: ' + code); return; }
+  let roomData = null;
+  let fullCode = null;
+
+  // Strategy 1: look up full code via index key (shared storage, same artifact link)
+  try {
+    const idxResult = await window.storage.get('roomidx:' + input, true);
+    if (idxResult && idxResult.value) {
+      fullCode = idxResult.value;
+      roomData = await storageGet('room:' + fullCode);
+    }
+  } catch {}
+
+  // Strategy 2: list all keys with prefix 'room:' and match visible prefix
+  if (!roomData) {
+    try {
+      const listResult = await window.storage.list('room:', true);
+      if (listResult && listResult.keys) {
+        for (const k of listResult.keys) {
+          const code = k.replace('room:', '');
+          if (code.startsWith(input)) {
+            fullCode = code;
+            roomData = await storageGet(k);
+            if (roomData) break;
+          }
+        }
+      }
+    } catch {}
+  }
+
+  // Strategy 3: storage isolated — ask for 6-char code
+  if (!roomData) {
+    showError('Sala não encontrada. Peça o código de 6 letras ao host.');
+    document.getElementById('join-code').setAttribute('maxlength','6');
+    document.getElementById('join-code').placeholder = 'Código de 6 chars';
+    return;
+  }
+
   if (roomData.p2) { showError('Sala já está cheia'); return; }
   if (roomData.phase !== 'waiting') { showError('Jogo já em andamento'); return; }
 
   me.role = 'p2';
   me.name = name;
-  me.roomCode = code;
+  me.roomCode = fullCode;
   me.isHost = false;
   me.isObserver = false;
 
   roomData.p2 = { name, guesses: [], done: false, won: false };
   roomData.phase = 'playing';
-  await storageSet('room:' + code, roomData);
+  await storageSet('room:' + fullCode, roomData);
   room = roomData;
 
+  initGame(roomData);
+}
+
+// ── JOIN WITH 6-CHAR CODE (fallback autonomous recovery) ─────────────────
+async function joinRoom6(fullCode, name) {
+  let roomData = await storageGet('room:' + fullCode);
+
+  if (!roomData) {
+    const suffix = fullCode.slice(4);
+    const idx = decodeIdx(suffix);
+    if (idx < 0 || idx >= WORDS.length) { showError('Código inválido'); return; }
+    const secret = WORDS[idx];
+    roomData = {
+      code: fullCode,
+      secret,
+      hostSetSecret: false,
+      p1: { name: 'JOGADOR 1', guesses: [], done: false, won: false },
+      p2: null,
+      phase: 'waiting',
+      rematch: {},
+      created: Date.now(),
+      reconstructed: true,
+    };
+    await storageSet('room:' + fullCode, roomData);
+  }
+
+  if (roomData.p2 && !roomData.reconstructed) { showError('Sala já está cheia'); return; }
+
+  me.role = 'p2';
+  me.name = name;
+  me.roomCode = fullCode;
+  me.isHost = false;
+  me.isObserver = false;
+
+  roomData.p2 = { name, guesses: [], done: false, won: false };
+  roomData.phase = 'playing';
+  delete roomData.reconstructed;
+  await storageSet('room:' + fullCode, roomData);
+  room = roomData;
   initGame(roomData);
 }
 
 // ── CANCEL ────────────────────────────────────────────────────────────────
 async function cancelRoom() {
   stopPolling();
-  if (me.roomCode) await storageDel('room:' + me.roomCode);
+  if (me.roomCode) {
+    await storageDel('room:' + me.roomCode);
+    await storageDel('roomidx:' + visibleCode(me.roomCode));
+  }
   showScreen('lobby');
 }
 
@@ -846,9 +952,12 @@ async function requestRematch() {
   const oppRole = me.role === 'p1' ? 'p2' : 'p1';
   if (roomData.rematch[oppRole]) {
     // Both voted — start new round
-    const newSecret = WORDS[Math.floor(Math.random()*WORDS.length)];
+    const newIdx = Math.floor(Math.random()*WORDS.length);
+    const newSecret = WORDS[newIdx];
+    const newFullCode = genCode(newIdx);
     const newRoom = {
       ...roomData,
+      code: newFullCode,
       secret: newSecret,
       hostSetSecret: false,
       p1: { name: roomData.p1.name, guesses: [], done: false, won: false },
@@ -856,7 +965,9 @@ async function requestRematch() {
       phase: 'playing',
       rematch: {},
     };
-    await storageSet('room:' + me.roomCode, newRoom);
+    await storageSet('room:' + newFullCode, newRoom);
+    await storageDel('room:' + me.roomCode);
+    me.roomCode = newFullCode;
     room = newRoom;
     initGame(newRoom);
   } else {
@@ -869,17 +980,22 @@ async function requestRematch() {
       if (!rd) { clearInterval(waitRematch); return; }
       if (rd.rematch && rd.rematch[oppRole]) {
         clearInterval(waitRematch);
-        const newSecret = WORDS[Math.floor(Math.random()*WORDS.length)];
+        const newIdx2 = Math.floor(Math.random()*WORDS.length);
+        const newSecret2 = WORDS[newIdx2];
+        const newFullCode2 = genCode(newIdx2);
         const newRoom = {
           ...rd,
-          secret: newSecret,
+          code: newFullCode2,
+          secret: newSecret2,
           hostSetSecret: false,
           p1: { name: rd.p1.name, guesses: [], done: false, won: false },
           p2: { name: rd.p2.name, guesses: [], done: false, won: false },
           phase: 'playing',
           rematch: {},
         };
-        await storageSet('room:' + me.roomCode, newRoom);
+        await storageSet('room:' + newFullCode2, newRoom);
+        await storageDel('room:' + me.roomCode);
+        me.roomCode = newFullCode2;
         room = newRoom;
         initGame(newRoom);
       } else if (rd.phase === 'playing') {
@@ -895,7 +1011,8 @@ async function requestRematch() {
 function goLobby() {
   stopPolling();
   document.getElementById('overlay').classList.remove('visible');
-  document.getElementById('join-code').value = '';
+  const jc = document.getElementById('join-code');
+  jc.value = ''; jc.setAttribute('maxlength','6'); jc.placeholder = 'Ex: AB3X';
   document.getElementById('create-name').value = '';
   document.getElementById('create-secret').value = '';
   me = { role: null, name: '', roomCode: '', isHost: false, isObserver: false };
