@@ -288,7 +288,7 @@
     </div>
     <div class="field">
       <label>Código da sala</label>
-      <input id="join-code" type="text" maxlength="6" placeholder="Ex: AB3X" style="letter-spacing:6px; font-size:1.1rem; text-align:center;">
+      <input id="join-code" type="text" maxlength="6" placeholder="Ex: AB3X4Y" style="letter-spacing:6px; font-size:1.1rem; text-align:center;">
     </div>
     <button class="btn-primary" onclick="joinRoom()">ENTRAR NA SALA</button>
   </div>
@@ -311,8 +311,10 @@
 
 <!-- ── GAME ── -->
 <div id="screen-game" class="screen">
-  <div id="waiting-opp-banner" style="display:none; width:100%; background:var(--panel); border-bottom:1px solid var(--border); padding:10px 16px; text-align:center; font-size:.65rem; letter-spacing:2px; color:var(--yellow); text-transform:uppercase;">
-    Aguardando adversário… Código: <span id="banner-room-code" style="color:var(--blue); font-family:'Black Han Sans',sans-serif; font-size:.9rem; letter-spacing:4px;"></span>
+  <div id="waiting-opp-banner" style="display:none; width:100%; background:var(--panel); border-bottom:2px solid var(--blue); padding:14px 16px; text-align:center;">
+    <div style="font-size:.55rem; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:8px;">Compartilhe o código com seu adversário</div>
+    <div id="banner-room-code" style="color:var(--blue); font-family:'Black Han Sans',sans-serif; font-size:2.2rem; letter-spacing:10px; cursor:pointer; padding:8px 0;" onclick="copyRoomCode()" title="Clique para copiar"></div>
+    <div style="font-size:.55rem; letter-spacing:1px; color:var(--muted); margin-top:6px;">clique para copiar &middot; aguardando adversário<span class="dots-anim"></span></div>
   </div>
   <div class="turn-banner" id="turn-banner">
     <div class="dot"></div>
@@ -717,7 +719,7 @@ function initGame(roomData) {
   const waitingBanner = document.getElementById('waiting-opp-banner');
   if (me.isHost && !p2IsReal) {
     waitingBanner.style.display = 'block';
-    document.getElementById('banner-room-code').textContent = visibleCode(me.roomCode);
+    document.getElementById('banner-room-code').textContent = me.roomCode;
   } else {
     waitingBanner.style.display = 'none';
   }
@@ -1042,11 +1044,27 @@ async function requestRematch() {
   }
 }
 
+
+// ── COPY ROOM CODE ────────────────────────────────────────────────────────
+function copyRoomCode() {
+  const code = me.roomCode;
+  if (!code) return;
+  navigator.clipboard.writeText(code).then(() => {
+    const el = document.getElementById('banner-room-code');
+    const orig = el.textContent;
+    el.textContent = 'COPIADO!';
+    el.style.color = 'var(--green)';
+    setTimeout(() => { el.textContent = orig; el.style.color = ''; }, 1500);
+  }).catch(() => {
+    showError('Copie manualmente: ' + code);
+  });
+}
+
 function goLobby() {
   stopPolling();
   document.getElementById('overlay').classList.remove('visible');
   const jc = document.getElementById('join-code');
-  jc.value = ''; jc.setAttribute('maxlength','6'); jc.placeholder = 'Ex: AB3X';
+  jc.value = ''; jc.setAttribute('maxlength','6'); jc.placeholder = 'Ex: AB3X4Y';
   document.getElementById('create-name').value = '';
   document.getElementById('create-secret').value = '';
   me = { role: null, name: '', roomCode: '', isHost: false, isObserver: false };
