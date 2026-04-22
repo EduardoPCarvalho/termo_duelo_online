@@ -315,6 +315,7 @@
     <div style="font-size:.55rem; letter-spacing:2px; color:var(--muted); text-transform:uppercase; margin-bottom:8px;">Compartilhe o código com seu adversário</div>
     <div id="banner-room-code" style="color:var(--blue); font-family:'Black Han Sans',sans-serif; font-size:2.2rem; letter-spacing:10px; cursor:pointer; padding:8px 0;" onclick="copyRoomCode()" title="Clique para copiar"></div>
     <div style="font-size:.55rem; letter-spacing:1px; color:var(--muted); margin-top:6px;">clique para copiar &middot; aguardando adversário<span class="dots-anim"></span></div>
+    <button onclick="document.getElementById('waiting-opp-banner').style.display='none'" style="margin-top:10px; background:transparent; border:1px solid var(--muted); color:var(--muted); font-family:'Space Mono',monospace; font-size:.6rem; letter-spacing:2px; padding:6px 16px; cursor:pointer; text-transform:uppercase;">já compartilhei, jogar agora</button>
   </div>
   <div class="turn-banner" id="turn-banner">
     <div class="dot"></div>
@@ -681,16 +682,12 @@ async function poll() {
     return;
   }
 
-  // In game: sync opponent name if still placeholder
+  // In game: sync opponent
   if (currentScreen === 'screen-game') {
     if (roomData.p2 && roomData.p2.name !== '???') {
-      // Update opponent name in header if it was placeholder
-      const oppNameEl = document.getElementById('hdr-p2-name');
-      if (oppNameEl && oppNameEl.textContent === '???') {
-        oppNameEl.textContent = roomData.p2.name.slice(0,4);
-        document.getElementById('opp-status-name').textContent = roomData.p2.name;
-        document.getElementById('waiting-opp-banner').style.display = 'none';
-      }
+      document.getElementById('hdr-p2-name').textContent = roomData.p2.name.slice(0,4);
+      document.getElementById('opp-status-name').textContent = roomData.p2.name;
+      document.getElementById('waiting-opp-banner').style.display = 'none';
     }
     syncOpponent(roomData);
 
