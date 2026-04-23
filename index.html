@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>DUELO — Termo Online</title>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #0d0d0f;
@@ -154,7 +155,8 @@
     transition:border-color .15s, background .3s;
   }
   @media (max-width:360px) { .cell { width:52px; height:52px; font-size:1.4rem; } }
-  .cell.active-row { border-color:#444450; }
+  .cell.active-row { border-color:#444450; cursor:pointer; }
+  .cell.selected { border-color:var(--text) !important; box-shadow:0 0 0 2px var(--text); }
   .cell.filled { border-color:#555562; }
   .cell.pop { animation:pop .12s ease; }
   .cell.correct { background:var(--green); border-color:var(--green); color:#fff; }
@@ -355,7 +357,7 @@
       <button class="key" onclick="pressKey('L')">L</button>
     </div>
     <div class="kb-row">
-      <button class="key wide" onclick="submitGuess()">ENTER</button>
+      <button class="key wide" onclick="deleteLetter()">⌫</button>
       <button class="key" onclick="pressKey('Z')">Z</button>
       <button class="key" onclick="pressKey('X')">X</button>
       <button class="key" onclick="pressKey('C')">C</button>
@@ -363,7 +365,7 @@
       <button class="key" onclick="pressKey('B')">B</button>
       <button class="key" onclick="pressKey('N')">N</button>
       <button class="key" onclick="pressKey('M')">M</button>
-      <button class="key wide" onclick="deleteLetter()">⌫</button>
+      <button class="key wide" onclick="submitGuess()">ENTER</button>
     </div>
   </div>
 </div>
@@ -818,18 +820,72 @@ const EXTRA_WORDS = new Set([
 ].filter(w => w.length === 5));
 // Merge with main VALID_WORDS
 EXTRA_WORDS.forEach(w => VALID_WORDS.add(w));
+// Lote extra de palavras válidas do português
+const BONUS_WORDS = new Set([
+  "ABACO","ABAIA","ABANA","ABOBA","ABONO","ACAJU","AGAVE","AGUAS","ALAMO","ALANE",
+  "ALANS","ALBUM","ALCAS","ALFAS","ALHOS","ALMUD","ALQUI","ALTAR","ALTOS","ALUNA",
+  "AMAGO","AMBAR","AMEBA","AMIDO","ANETO","ANTAS","ANVIL","ANZOL","APITO","ARAME",
+  "ARDIL","ARGLA","ASILO","ATEUS","AVANS","AZOTO","BALDE","BAQUE","BEQUE","BOMBA",
+  "BOSCO","BUCHO","BUZIO","FETUS","FOSSO","OSTRA","BLUES","ACODA","ADORA","ADULA",
+  "ALOJA","AMOLA","ANELA","ANODA","APITA","APODA","ATACA","ATIRA","AVISA","AVOCA",
+  "AZULA","BAILA","BAIXA","BALCA","BASTA","BEBAM","BEIJA","BICAM","BOIAM","BOTAM",
+  "CATAM","CAVAI","CHIAM","CITAM","COLAM","COZEM","CURAM","DATAM","DITAM","DOPAM",
+  "DOSAM","DOTAM","FICAM","FOCAM","GUIAM","MIRAM","NEVAM","OPTAM","PODEM","RAIAM",
+  "REMAM","ROLAM","SANAM","SEDAM","SOMAM","SUGAM","SUJAM","VIRAM","ABITA","ABJEC",
+  "ABSUR","ACIDO","ALGOZ","ALIVO","ALONO","ARDUO","ARIDO","ASPRO","AUDAZ","BALDO",
+  "BASTO","BONDO","BRUTO","CABAL","CALMO","CASTO","CIOSO","DANDO","DIOSO","ERETO",
+  "FEROZ","FUGAZ","GUAPO","HONRO","JUSTO","LONGO","MUNTO","POUCO","RECTO","SERIO",
+  "SURDO","TENUE","VERAZ"
+].filter(w => w.length === 5));
+BONUS_WORDS.forEach(w => VALID_WORDS.add(w));
+const BONUS2_WORDS = new Set([
+  "AGUAR","ALGAR","ALIAR","ALMAR","ALUAR","AMUAR","ANCOR","APEDR","APIAR","ARCAR",
+  "ARDER","ARMAR","ARPAR","ARRAR","BALAR","BANIR","BRIAR","CACAR","CALAR","CELAR",
+  "CERAR","CODAR","COGER","COSER","DIZER","DOBAR","ENXER","ESTAR","FERIR","GERAR",
+  "GORAR","LACAR","LAVAR","LIGAR","LIJAR","LOGAR","MALAR","MEDIR","MEXER","NAPAR",
+  "NOTAR","ODIAR","RALAR","REPAR","REZAR","SACAR","TALAR","TEMER","TIRAR","TUBAR",
+  "VAGAR","VALAR","AGIDE","ALEGA","ABADA","GAVAO","LONZA","LOSNA","LOURO","LUZIO",
+  "MACOA","MARAO","MARIA","MARTA","MATOS","MELRO","MERLO","MOCOA","MORAO","MOSCA",
+  "MOUCO","MURTA","NANCE","NARCO","NERVO","NOVOA","OGUIA","ORUGA","PANDA","PARGO",
+  "PATUA","PAUXI","PAVAO","PAXAO","PERCO","PERDO","PERSA","PESOA","PIOCA","PIQUE",
+  "PIRAI","PIUBA","PONCA","PONGO","PORRA","POSTA","POTRO","PRANO","PRETO","PROAS",
+  "PROBA","PULGA","PUNGA","PURUA","QUATI","RAPOA","RATON","RAYAO","REFAO","RELHO",
+  "RENCA","RENGO","REPOL","REZOA","RIOBA","RINHA","RISOA","ROBAO","ROBOR","ROLHA",
+  "ROLIM","ROMEU","ROMPA","RONCO","ROTOA","ROUPA","RUANO","RUBOR","RUGAO","RUIVA",
+  "RUMBA","RUPIA","SAIGA","SAIXA","SANDE","SANOA","SAOCA","SARDA","SARGO","SAROA",
+  "SARPA","SAUBA","SAUCA","SEBAO","SEGAL","SEIVA","SELVA","SENDA","SERAO","SEROA",
+  "SERPA","SERTA","SERVA","SETOA","SEXOA","SICOA","SIDRA","SIENA","SIGLA","SILVA",
+  "SINOA","SIRGO","SISAL","SOBRA","SOLHA","SORGO","SOTOA","SUABA","SUACA","SUARA",
+  "SUROA","TABOA","TABUA","TACOA","TAIPA","TALHA","TALIO","TALOA","TAMAR","TAMOA",
+  "TAOCA","TAPIR","TAPOA","TARAO","TAROA","TAUCA","TAUPE","TEIMA","TEIPO","TEIVO",
+  "TELHA","TENCA","TENRO","TERCA","TEROA","TIGRE","TIMON","TINCA","TINGA","TINJA",
+  "TIOCA","TIPLE","TIRSO","TISOA","TOADA","TOBAO","TOGOA","TOIRO","TRAPO","TREVO",
+  "TROPA","TRUCA","TUCAO","TUIOA","TULIO","TULHA","TUMOA","TUPOA","TURVA","TUTOA",
+  "UBUCU","ULURU","UMBRA","UNCAO","UNICA","UNTAR","URUBU","UTOIA","VAIMO","VANOA",
+  "VAROA","VASOA","VEIGA","VELOA","VENDA","VENOA","VEROA","VIANA","VIDRA","VIDRO",
+  "VIGOA","VIOTA","VISCO","VITOA","VOBOA","VOIOA","VOMOA","VOUGA","XAXIM","ZAMOA",
+  "ZEBOA","ZEBRA","ZUMBI"
+].filter(w => w.length === 5));
+BONUS2_WORDS.forEach(w => VALID_WORDS.add(w));
+
+
 
 const MAX_ATTEMPTS = 6;
 const WORD_LENGTH  = 5;
-const POLL_INTERVAL = 1000; // ms
+const POLL_INTERVAL = 1500; // ms fallback polling
+
+// ── SUPABASE ───────────────────────────────────────────────────────────────
+const SUPA_URL = 'https://nhoacpcopedhzllfbqrc.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ob2FjcGNvcGVkaHpsbGZicXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5NzAyNzEsImV4cCI6MjA5MjU0NjI3MX0.7eZ4M8caFnBAylge0ntjaRuXi9wc_mxMUMlCex1bmjw';
+const supa = supabase.createClient(SUPA_URL, SUPA_KEY);
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 let me = {
-  role: null,        // 'p1' | 'p2'
+  role: null,
   name: '',
   roomCode: '',
   isHost: false,
-  isObserver: false, // host who set secret word can't play
+  isObserver: false,
 };
 
 let game = {
@@ -841,25 +897,87 @@ let game = {
   keyHints: {},
 };
 
-let room = null;     // full room object from storage
+let room = null;
 let pollTimer = null;
+let realtimeSub = null;
 let scores = { p1: 0, p2: 0 };
 let rematchVotes = {};
+let selectedCol = null; // column index selected by clicking a cell
 
-// ── STORAGE HELPERS ────────────────────────────────────────────────────────
+// ── STORAGE HELPERS (Supabase) ─────────────────────────────────────────────
 async function storageGet(key) {
   try {
-    const r = await window.storage.get(key, true);
-    return r ? JSON.parse(r.value) : null;
+    const roomId = key.replace('room:', '');
+    const { data, error } = await supa.from('rooms').select('data').eq('id', roomId).single();
+    if (error || !data) return null;
+    return data.data;
   } catch { return null; }
 }
+
 async function storageSet(key, val) {
   try {
-    await window.storage.set(key, JSON.stringify(val), true);
-  } catch(e) { console.error('storage set error', e); }
+    const roomId = key.replace('room:', '');
+    await supa.from('rooms').upsert({ id: roomId, data: val, updated_at: new Date().toISOString() });
+  } catch(e) { console.error('supabase set error', e); }
 }
+
 async function storageDel(key) {
-  try { await window.storage.delete(key, true); } catch {}
+  try {
+    const roomId = key.replace('room:', '');
+    await supa.from('rooms').delete().eq('id', roomId);
+  } catch {}
+}
+
+// ── REALTIME ───────────────────────────────────────────────────────────────
+function subscribeRealtime(roomCode) {
+  unsubscribeRealtime();
+  realtimeSub = supa
+    .channel('room-' + roomCode)
+    .on('postgres_changes', {
+      event: '*',
+      schema: 'public',
+      table: 'rooms',
+      filter: 'id=eq.' + roomCode
+    }, payload => {
+      const roomData = payload.new?.data;
+      if (!roomData) return;
+      room = roomData;
+      handleRoomUpdate(roomData);
+    })
+    .subscribe();
+}
+
+function unsubscribeRealtime() {
+  if (realtimeSub) {
+    supa.removeChannel(realtimeSub);
+    realtimeSub = null;
+  }
+}
+
+function handleRoomUpdate(roomData) {
+  const currentScreen = document.querySelector('.screen.active')?.id;
+
+  if (currentScreen === 'screen-waiting') {
+    if (roomData.p2 && roomData.p2.name !== '???') {
+      stopPolling();
+      initGame(roomData);
+    }
+    return;
+  }
+
+  if (currentScreen === 'screen-game') {
+    if (roomData.p2 && roomData.p2.name !== '???') {
+      document.getElementById('hdr-p2-name').textContent = roomData.p2.name.slice(0,4);
+      document.getElementById('opp-status-name').textContent = roomData.p2.name;
+      document.getElementById('waiting-opp-banner').style.display = 'none';
+    }
+    syncOpponent(roomData);
+    if (roomData.phase === 'ended') {
+      stopPolling();
+      unsubscribeRealtime();
+      showResult(roomData);
+    }
+  }
 }
 
 // ── ROOM CODE ──────────────────────────────────────────────────────────────
@@ -929,60 +1047,30 @@ async function createRoom() {
   };
 
   await storageSet('room:' + fullCode, roomData);
-  try { await window.storage.set('roomidx:' + vCode, JSON.stringify(fullCode), true); } catch {}
   room = roomData;
 
   document.getElementById('display-room-code').textContent = vCode;
   document.getElementById('display-full-code').textContent = fullCode;
   document.getElementById('opp-name-waiting').textContent = 'adversário';
 
-  // Host goes directly to game, waiting for p2 to join while playing
+  subscribeRealtime(fullCode);
+  // Host goes directly to game
   initGame(roomData);
-  // Show the room code as a banner so host can share it
-  showMsg('Código da sala: ' + vCode + ' — compartilhe com seu adversário!', 'info');
 }
 
 // ── JOIN ROOM ─────────────────────────────────────────────────────────────
 async function joinRoom() {
   const name = document.getElementById('join-name').value.trim().toUpperCase() || 'JOGADOR 2';
   const input = document.getElementById('join-code').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
-  if (input.length === 6) { joinRoom6(input, name); return; }
-  if (input.length !== 4) { showError('Código deve ter 4 caracteres'); return; }
+  if (input.length !== 6) { showError('Código deve ter 6 caracteres'); return; }
+  joinRoom6(input, name);
+}
 
-  let roomData = null;
-  let fullCode = null;
+async function joinRoom6(fullCode, name) {
+  let roomData = await storageGet('room:' + fullCode);
 
-  // Strategy 1: look up full code via index key (shared storage, same artifact link)
-  try {
-    const idxResult = await window.storage.get('roomidx:' + input, true);
-    if (idxResult && idxResult.value) {
-      fullCode = JSON.parse(idxResult.value);
-      roomData = await storageGet('room:' + fullCode);
-    }
-  } catch {}
-
-  // Strategy 2: list all keys with prefix 'room:' and match visible prefix
   if (!roomData) {
-    try {
-      const listResult = await window.storage.list('room:', true);
-      if (listResult && listResult.keys) {
-        for (const k of listResult.keys) {
-          const code = k.replace('room:', '');
-          if (code.startsWith(input)) {
-            fullCode = code;
-            roomData = await storageGet(k);
-            if (roomData) break;
-          }
-        }
-      }
-    } catch {}
-  }
-
-  // Strategy 3: storage isolated — ask for 6-char code
-  if (!roomData) {
-    showError('Sala não encontrada. Peça o código de 6 letras ao host.');
-    document.getElementById('join-code').setAttribute('maxlength','6');
-    document.getElementById('join-code').placeholder = 'Código de 6 chars';
+    showError('Sala não encontrada. Verifique o código.');
     return;
   }
 
@@ -998,59 +1086,18 @@ async function joinRoom() {
   roomData.p2 = { name, guesses: [], done: false, won: false };
   roomData.phase = 'playing';
   await storageSet('room:' + fullCode, roomData);
-  await storageSet('room:' + fullCode, roomData);
   room = roomData;
 
-  initGame(roomData);
-}
-
-// ── JOIN WITH 6-CHAR CODE (fallback autonomous recovery) ─────────────────
-async function joinRoom6(fullCode, name) {
-  let roomData = await storageGet('room:' + fullCode);
-
-  if (!roomData) {
-    const suffix = fullCode.slice(4);
-    const idx = decodeIdx(suffix);
-    if (idx < 0 || idx >= WORDS.length) { showError('Código inválido'); return; }
-    const secret = WORDS[idx];
-    roomData = {
-      code: fullCode,
-      secret,
-      hostSetSecret: false,
-      p1: { name: 'JOGADOR 1', guesses: [], done: false, won: false },
-      p2: null,
-      phase: 'waiting',
-      rematch: {},
-      created: Date.now(),
-      reconstructed: true,
-    };
-    await storageSet('room:' + fullCode, roomData);
-  }
-
-  if (roomData.p2 && roomData.p2.name !== '???' && !roomData.reconstructed) { showError('Sala já está cheia'); return; }
-
-  me.role = 'p2';
-  me.name = name;
-  me.roomCode = fullCode;
-  me.isHost = false;
-  me.isObserver = false;
-
-  roomData.p2 = { name, guesses: [], done: false, won: false };
-  roomData.phase = 'playing';
-  delete roomData.reconstructed;
-  await storageSet('room:' + fullCode, roomData);
-  // Write a second time to ensure storage propagation
-  await storageSet('room:' + fullCode, roomData);
-  room = roomData;
+  subscribeRealtime(fullCode);
   initGame(roomData);
 }
 
 // ── CANCEL ────────────────────────────────────────────────────────────────
 async function cancelRoom() {
   stopPolling();
+  unsubscribeRealtime();
   if (me.roomCode) {
     await storageDel('room:' + me.roomCode);
-    await storageDel('roomidx:' + visibleCode(me.roomCode));
   }
   showScreen('lobby');
 }
@@ -1140,6 +1187,7 @@ function initGame(roomData) {
   buildGrid(false);
   updateTurnBanner();
   updateOppStatus(roomData);
+  // Realtime already subscribed; fallback polling as safety net
   startPolling();
 }
 
@@ -1155,11 +1203,45 @@ function buildGrid(disabled) {
       const cell = document.createElement('div');
       cell.className = 'cell';
       cell.id = `cell-${r}-${c}`;
+      if (!disabled) {
+        cell.addEventListener('click', () => onCellClick(r, c));
+      }
       row.appendChild(cell);
     }
     g.appendChild(row);
   }
   if (!disabled) highlightActiveRow();
+}
+
+function onCellClick(r, c) {
+  if (me.isObserver || game.done) return;
+  // Only allow clicking on active row
+  if (r !== game.guesses.length) return;
+
+  // If clicking a filled cell or before it, move cursor there
+  // Clicking sets selectedCol so next keypress fills that position
+  selectedCol = c;
+
+  // Trim current input to selected position if needed
+  if (game.current.length > c) {
+    game.current = game.current.slice(0, c);
+    renderCurrentInput();
+  }
+
+  // Visually highlight selected cell
+  highlightSelectedCell();
+}
+
+function highlightSelectedCell() {
+  const row = game.guesses.length;
+  for (let c=0; c<WORD_LENGTH; c++) {
+    const cell = document.getElementById(`cell-${row}-${c}`);
+    if (cell) cell.classList.remove('selected');
+  }
+  if (selectedCol !== null) {
+    const cell = document.getElementById(`cell-${row}-${selectedCol}`);
+    if (cell) cell.classList.add('selected');
+  }
 }
 
 function highlightActiveRow() {
@@ -1172,6 +1254,7 @@ function highlightActiveRow() {
     const activeRow = document.getElementById('row-' + game.guesses.length);
     if (activeRow) activeRow.querySelectorAll('.cell').forEach(c => c.classList.add('active-row'));
   }
+  selectedCol = null;
 }
 
 // ── TURN BANNER ───────────────────────────────────────────────────────────
@@ -1241,6 +1324,25 @@ document.addEventListener('keydown', e => {
 
 function pressKey(key) {
   if (me.isObserver || game.done) return;
+
+  // If a cell is selected, insert at that position
+  if (selectedCol !== null) {
+    const col = selectedCol;
+    // Pad with spaces up to col if needed
+    let arr = game.current.split('');
+    while (arr.length < col) arr.push('');
+    arr[col] = key;
+    game.current = arr.join('').slice(0, WORD_LENGTH);
+    // Advance selectedCol
+    selectedCol = col + 1 < WORD_LENGTH ? col + 1 : null;
+    renderCurrentInput();
+    const cell = document.getElementById(`cell-${game.guesses.length}-${col}`);
+    if (cell) { cell.classList.remove('pop'); void cell.offsetWidth; cell.classList.add('pop'); }
+    highlightSelectedCell();
+    clearMsg();
+    return;
+  }
+
   if (game.current.length >= WORD_LENGTH) return;
   game.current += key;
   renderCurrentInput();
@@ -1251,8 +1353,21 @@ function pressKey(key) {
 
 function deleteLetter() {
   if (me.isObserver || game.done) return;
-  game.current = game.current.slice(0,-1);
+  if (selectedCol !== null && selectedCol > 0) {
+    // Delete char at selectedCol-1 and move cursor back
+    let arr = game.current.split('');
+    const delAt = selectedCol - 1;
+    arr[delAt] = '';
+    // Trim trailing empty
+    while (arr.length && arr[arr.length-1] === '') arr.pop();
+    game.current = arr.join('');
+    selectedCol = delAt;
+  } else {
+    selectedCol = null;
+    game.current = game.current.slice(0,-1);
+  }
   renderCurrentInput();
+  highlightSelectedCell();
   clearMsg();
 }
 
@@ -1264,8 +1379,9 @@ function renderCurrentInput() {
     const ch = game.current[c] || '';
     cell.textContent = ch;
     cell.classList.toggle('filled', ch !== '');
-    cell.classList.remove('correct','present','absent');
+    cell.classList.remove('correct','present','absent','selected');
   }
+  highlightSelectedCell();
 }
 
 // ── SUBMIT ────────────────────────────────────────────────────────────────
@@ -1277,6 +1393,7 @@ async function submitGuess() {
     return;
   }
 
+  selectedCol = null;
   const guess = game.current;
   if (!VALID_WORDS.has(guess)) {
     shakeRow(game.guesses.length);
@@ -1411,6 +1528,7 @@ async function requestRematch() {
     await storageDel('room:' + me.roomCode);
     me.roomCode = newFullCode;
     room = newRoom;
+    subscribeRealtime(newFullCode);
     initGame(newRoom);
   } else {
     roomData.phase = 'rematch-wait';
@@ -1468,6 +1586,7 @@ function copyRoomCode() {
 
 function goLobby() {
   stopPolling();
+  unsubscribeRealtime();
   document.getElementById('overlay').classList.remove('visible');
   const jc = document.getElementById('join-code');
   jc.value = ''; jc.setAttribute('maxlength','6'); jc.placeholder = 'Ex: AB3X4Y';
