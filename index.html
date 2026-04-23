@@ -977,6 +977,19 @@ function handleRoomUpdate(roomData) {
       unsubscribeRealtime();
       showResult(roomData);
     }
+    return;
+  }
+
+  // Handle rematch-ready signal received via realtime while overlay is showing
+  if (roomData.phase === 'rematch-ready' && roomData.rematchCode) {
+    stopPolling();
+    storageGet('room:' + roomData.rematchCode).then(newRoom => {
+      if (!newRoom) { goLobby(); return; }
+      me.roomCode = roomData.rematchCode;
+      room = newRoom;
+      subscribeRealtime(roomData.rematchCode);
+      initGame(newRoom);
+    });
   }
 }
 
@@ -1153,7 +1166,7 @@ async function poll() {
 function initGame(roomData) {
   stopPolling();
   room = roomData;
-  game = { secret: roomData.secret, guesses: [], current: '', done: false, won: false, keyHints: {} };
+  game = { secret: roomData.secret, guesses: [], current: '', currentArr: ['','','','',''], done: false, won: false, keyHints: {} };
 
   const p2IsReal = roomData.p2 && roomData.p2.name !== '???';
 
@@ -1215,20 +1228,10 @@ function buildGrid(disabled) {
 
 function onCellClick(r, c) {
   if (me.isObserver || game.done) return;
-  // Only allow clicking on active row
   if (r !== game.guesses.length) return;
+  if (!game.currentArr) game.currentArr = ['','','','',''];
 
-  // If clicking a filled cell or before it, move cursor there
-  // Clicking sets selectedCol so next keypress fills that position
   selectedCol = c;
-
-  // Trim current input to selected position if needed
-  if (game.current.length > c) {
-    game.current = game.current.slice(0, c);
-    renderCurrentInput();
-  }
-
-  // Visually highlight selected cell
   highlightSelectedCell();
 }
 
@@ -1322,19 +1325,22 @@ document.addEventListener('keydown', e => {
   if (/^[A-Z]$/.test(key)) pressKey(key);
 });
 
+// game.currentArr is the source of truth for the active row: array of 5 chars ('' = empty).
+// game.current is derived from it for submission (contiguous filled chars from left).
+
 function pressKey(key) {
   if (me.isObserver || game.done) return;
 
-  // If a cell is selected, insert at that position
+  if (!game.currentArr) game.currentArr = ['','','','',''];
+
   if (selectedCol !== null) {
     const col = selectedCol;
-    // Pad with spaces up to col if needed
-    let arr = game.current.split('');
-    while (arr.length < col) arr.push('');
-    arr[col] = key;
-    game.current = arr.join('').slice(0, WORD_LENGTH);
-    // Advance selectedCol
-    selectedCol = col + 1 < WORD_LENGTH ? col + 1 : null;
+    game.currentArr[col] = key;
+    // Advance cursor to next empty cell, or next col if all filled
+    let next = col + 1;
+    while (next < WORD_LENGTH && game.currentArr[next] !== '') next++;
+    selectedCol = next < WORD_LENGTH ? next : null;
+    syncCurrentFromArr();
     renderCurrentInput();
     const cell = document.getElementById(`cell-${game.guesses.length}-${col}`);
     if (cell) { cell.classList.remove('pop'); void cell.offsetWidth; cell.classList.add('pop'); }
@@ -1343,40 +1349,59 @@ function pressKey(key) {
     return;
   }
 
-  if (game.current.length >= WORD_LENGTH) return;
-  game.current += key;
+  // No cell selected — append to next empty slot from left
+  const col = game.currentArr.indexOf('');
+  if (col === -1) return; // all filled
+  game.currentArr[col] = key;
+  syncCurrentFromArr();
   renderCurrentInput();
-  const cell = document.getElementById(`cell-${game.guesses.length}-${game.current.length-1}`);
+  const cell = document.getElementById(`cell-${game.guesses.length}-${col}`);
   if (cell) { cell.classList.remove('pop'); void cell.offsetWidth; cell.classList.add('pop'); }
   clearMsg();
 }
 
 function deleteLetter() {
   if (me.isObserver || game.done) return;
-  if (selectedCol !== null && selectedCol > 0) {
-    // Delete char at selectedCol-1 and move cursor back
-    let arr = game.current.split('');
-    const delAt = selectedCol - 1;
-    arr[delAt] = '';
-    // Trim trailing empty
-    while (arr.length && arr[arr.length-1] === '') arr.pop();
-    game.current = arr.join('');
-    selectedCol = delAt;
+  if (!game.currentArr) game.currentArr = ['','','','',''];
+
+  if (selectedCol !== null) {
+    // Delete the char at cursor (or the one before if cursor is after last char)
+    const delAt = selectedCol > 0 && game.currentArr[selectedCol] === ''
+      ? selectedCol - 1
+      : selectedCol;
+    if (game.currentArr[delAt] !== '') {
+      game.currentArr[delAt] = '';
+      selectedCol = delAt;
+    } else if (delAt > 0) {
+      game.currentArr[delAt - 1] = '';
+      selectedCol = delAt - 1;
+    }
   } else {
-    selectedCol = null;
-    game.current = game.current.slice(0,-1);
+    // Find last filled cell from right and clear it
+    let last = WORD_LENGTH - 1;
+    while (last >= 0 && game.currentArr[last] === '') last--;
+    if (last >= 0) game.currentArr[last] = '';
   }
+  syncCurrentFromArr();
   renderCurrentInput();
   highlightSelectedCell();
   clearMsg();
 }
 
+// Build game.current as the longest contiguous prefix (needed for submitGuess validation).
+function syncCurrentFromArr() {
+  if (!game.currentArr) game.currentArr = ['','','','',''];
+  // For submit we need all 5 filled; just join the array so submitGuess can check length.
+  game.current = game.currentArr.join('');
+}
+
 function renderCurrentInput() {
+  if (!game.currentArr) game.currentArr = ['','','','',''];
   const row = game.guesses.length;
   for (let c=0; c<WORD_LENGTH; c++) {
     const cell = document.getElementById(`cell-${row}-${c}`);
     if (!cell) continue;
-    const ch = game.current[c] || '';
+    const ch = game.currentArr[c] || '';
     cell.textContent = ch;
     cell.classList.toggle('filled', ch !== '');
     cell.classList.remove('correct','present','absent','selected');
@@ -1387,14 +1412,18 @@ function renderCurrentInput() {
 // ── SUBMIT ────────────────────────────────────────────────────────────────
 async function submitGuess() {
   if (me.isObserver || game.done) return;
-  if (game.current.length < WORD_LENGTH) {
+  if (!game.currentArr) game.currentArr = ['','','','',''];
+
+  // Must have all 5 cells filled
+  if (game.currentArr.some(ch => ch === '')) {
     shakeRow(game.guesses.length);
     showMsg('Palavra incompleta!', 'error');
     return;
   }
 
   selectedCol = null;
-  const guess = game.current;
+  const guess = game.currentArr.join('');
+  game.current = guess;
   if (!VALID_WORDS.has(guess)) {
     shakeRow(game.guesses.length);
     showMsg('Palavra inválida!', 'error');
@@ -1402,6 +1431,7 @@ async function submitGuess() {
   }
   game.guesses.push(guess);
   game.current = '';
+  game.currentArr = ['','','','',''];
 
   const result = evaluateGuess(guess, game.secret);
   revealRow(game.guesses.length - 1, guess, result, async () => {
@@ -1509,13 +1539,14 @@ async function requestRematch() {
   roomData.rematch[me.role] = true;
 
   const oppRole = me.role === 'p1' ? 'p2' : 'p1';
+
   if (roomData.rematch[oppRole]) {
-    // Both voted — start new round
-    const newIdx = Math.floor(Math.random()*WORDS.length);
+    // Both voted — this player creates the new room and publishes the new code
+    // into the OLD room so the waiting player can follow via realtime/poll.
+    const newIdx = Math.floor(Math.random() * WORDS.length);
     const newSecret = WORDS[newIdx];
     const newFullCode = genCode(newIdx);
     const newRoom = {
-      ...roomData,
       code: newFullCode,
       secret: newSecret,
       hostSetSecret: false,
@@ -1524,48 +1555,52 @@ async function requestRematch() {
       phase: 'playing',
       rematch: {},
     };
+
+    // 1. Create the new room first.
     await storageSet('room:' + newFullCode, newRoom);
-    await storageDel('room:' + me.roomCode);
+
+    // 2. Update old room to signal the other player where to go.
+    roomData.phase = 'rematch-ready';
+    roomData.rematchCode = newFullCode;
+    await storageSet('room:' + me.roomCode, roomData);
+
+    // 3. Switch this player to the new room.
+    const oldCode = me.roomCode;
     me.roomCode = newFullCode;
     room = newRoom;
     subscribeRealtime(newFullCode);
     initGame(newRoom);
+
+    // 4. Clean up old room after a short delay (let the other player read it).
+    setTimeout(() => storageDel('room:' + oldCode), 5000);
+
   } else {
+    // First to vote — just save the vote and wait.
     roomData.phase = 'rematch-wait';
     await storageSet('room:' + me.roomCode, roomData);
     showMsg('Aguardando adversário aceitar revanche…', 'info');
-    // Poll for opponent's vote
-    const waitRematch = setInterval(async () => {
-      const rd = await storageGet('room:' + me.roomCode);
-      if (!rd) { clearInterval(waitRematch); return; }
-      if (rd.rematch && rd.rematch[oppRole]) {
-        clearInterval(waitRematch);
-        const newIdx2 = Math.floor(Math.random()*WORDS.length);
-        const newSecret2 = WORDS[newIdx2];
-        const newFullCode2 = genCode(newIdx2);
-        const newRoom = {
-          ...rd,
-          code: newFullCode2,
-          secret: newSecret2,
-          hostSetSecret: false,
-          p1: { name: rd.p1.name, guesses: [], done: false, won: false },
-          p2: { name: rd.p2.name, guesses: [], done: false, won: false },
-          phase: 'playing',
-          rematch: {},
-        };
-        await storageSet('room:' + newFullCode2, newRoom);
-        await storageDel('room:' + me.roomCode);
-        me.roomCode = newFullCode2;
-        room = newRoom;
-        initGame(newRoom);
-      } else if (rd.phase === 'playing') {
-        // opponent initiated
-        clearInterval(waitRematch);
-        room = rd;
-        initGame(rd);
-      }
-    }, POLL_INTERVAL);
+    // The realtime subscription (handleRoomUpdate) will handle the transition
+    // when the other player posts rematch-ready. As a fallback, keep polling.
+    startRematchPoll(oppRole);
   }
+}
+
+function startRematchPoll(oppRole) {
+  stopPolling();
+  pollTimer = setInterval(async () => {
+    const rd = await storageGet('room:' + me.roomCode);
+    if (!rd) { stopPolling(); return; }
+
+    if (rd.phase === 'rematch-ready' && rd.rematchCode) {
+      stopPolling();
+      const newRoom = await storageGet('room:' + rd.rematchCode);
+      if (!newRoom) { goLobby(); return; }
+      me.roomCode = rd.rematchCode;
+      room = newRoom;
+      subscribeRealtime(rd.rematchCode);
+      initGame(newRoom);
+    }
+  }, POLL_INTERVAL);
 }
 
 
